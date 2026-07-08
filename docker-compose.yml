@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: factchecker
+      POSTGRES_PASSWORD: factchecker
+      POSTGRES_DB: factchecker
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U factchecker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://factchecker:factchecker@db:5432/factchecker
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      INGESTION_SECRET: ${INGESTION_SECRET:-dev-secret}
+      CORS_ORIGINS: http://localhost:5173
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  pgdata:

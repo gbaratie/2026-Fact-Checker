@@ -1,0 +1,1 @@
+{"root":["./src/main.tsx","./src/api/client.ts","./src/components/layout.tsx","./src/pages/candidatedetailpage.tsx","./src/pages/candidatespage.tsx","./src/pages/homepage.tsx","./src/pages/ingestionpage.tsx"],"errors":true,"version":"5.9.3"}

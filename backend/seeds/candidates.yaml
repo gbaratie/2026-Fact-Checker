@@ -1,0 +1,60 @@
+candidates:
+  - slug: marine-le-pen
+    full_name: Marine Le Pen
+    party: RN
+    status: declared
+    external_ids: {}
+
+  - slug: jordan-bardella
+    full_name: Jordan Bardella
+    party: RN
+    status: potential
+    external_ids: {}
+
+  - slug: emmanuel-macron
+    full_name: Emmanuel Macron
+    party: RE
+    status: potential
+    external_ids: {}
+
+  - slug: francois-ruffin
+    full_name: François Ruffin
+    party: LFI
+    status: potential
+    external_ids: {}
+
+  - slug: jean-luc-melenchon
+    full_name: Jean-Luc Mélenchon
+    party: LFI
+    status: potential
+    external_ids: {}
+
+  - slug: laurent-wauquiez
+    full_name: Laurent Wauquiez
+    party: LR
+    status: potential
+    external_ids: {}
+
+  - slug: fabien-roussel
+    full_name: Fabien Roussel
+    party: PCF
+    status: potential
+    external_ids: {}
+
+  - slug: yannick-jadot
+    full_name: Yannick Jadot
+    party: EELV
+    status: potential
+    external_ids: {}
+
+  - slug: clementine-autain
+    full_name: Clémentine Autain
+    party: LFI
+    status: potential
+    external_ids: {}
+
+  - slug: raphael-glucksmann
+    full_name: Raphaël Glucksmann
+    party: PS
+    status: potential
+    external_ids: {}
