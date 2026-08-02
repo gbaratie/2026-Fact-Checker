@@ -55,7 +55,11 @@ Interface sur http://localhost:5173.
 ### 4. Lancer une ingestion
 
 ```bash
+# Tout (YouTube + votes + presse)
 make ingest
+
+# Votes Assemblée uniquement (CLAIR.vote)
+make ingest-votes
 ```
 
 ## API
