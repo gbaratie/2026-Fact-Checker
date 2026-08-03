@@ -4,6 +4,13 @@ import { VoteStats, formatLoyalty } from '../api/client';
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="app">
+      <div className="top-banner" role="status">
+        <p>
+          Projet open source en construction — exploration de sources publiques
+          (YouTube, votes Assemblée, presse). Les données sont collectées
+          automatiquement et ne remplacent pas un fact-checking humain.
+        </p>
+      </div>
       <header className="header">
         <Link to="/" className="logo">
           Fact-Checker 2026
