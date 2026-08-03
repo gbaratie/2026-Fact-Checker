@@ -1,4 +1,4 @@
-.PHONY: up down migrate seed ingest test lint
+.PHONY: up down migrate seed ingest ingest-votes test lint
 
 up:
 	docker compose up -d
@@ -14,6 +14,9 @@ seed:
 
 ingest:
 	cd backend && python -m app.ingestion.run
+
+ingest-votes:
+	cd backend && python -m app.ingestion.run_votes
 
 test:
 	cd backend && pytest

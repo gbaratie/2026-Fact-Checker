@@ -28,14 +28,23 @@ async def seed_candidates() -> None:
             )
             candidate = result.scalar_one_or_none()
 
-            external_ids = entry.get("external_ids") or {}
-            if not external_ids.get("depute_id"):
-                depute = await parliament.search_depute(entry["full_name"])
+            external_ids = dict(entry.get("external_ids") or {})
+            if not external_ids.get("clair_slug"):
+                depute = await parliament.resolve_depute(
+                    entry["full_name"], preferred_slug=entry["slug"]
+                )
                 if depute:
-                    depute_id = str(depute.get("id") or depute.get("uid") or "")
-                    if depute_id:
-                        external_ids["depute_id"] = depute_id
-                        logger.info("Matched %s -> depute_id %s", entry["slug"], depute_id)
+                    external_ids["clair_slug"] = depute.slug
+                    external_ids["clair_id"] = depute.id
+                    external_ids["depute_id"] = depute.id
+                    logger.info(
+                        "Matched %s -> clair_slug %s (actif=%s)",
+                        entry["slug"],
+                        depute.slug,
+                        depute.actif,
+                    )
+                else:
+                    logger.info("No Assemblee match for %s", entry["slug"])
 
             if candidate:
                 candidate.full_name = entry["full_name"]

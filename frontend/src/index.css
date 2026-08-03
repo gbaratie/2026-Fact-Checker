@@ -15,6 +15,21 @@
   min-height: 100vh;
 }
 
+.top-banner {
+  background: #e8ecf8;
+  border-bottom: 1px solid #c5cde3;
+  color: #1a1a2e;
+  padding: 0.65rem 2rem;
+  text-align: center;
+}
+
+.top-banner p {
+  margin: 0 auto;
+  max-width: 1100px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -300,4 +315,184 @@ h1 {
 
 .vote-contre {
   color: #c0392b;
+}
+
+.vote-abstention {
+  color: #7f8c8d;
+}
+
+.group-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #2d3a8c;
+  color: #fff;
+}
+
+.group-badge-link {
+  text-decoration: none;
+}
+
+.group-fullname {
+  color: #555;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.meta-link {
+  color: #2d3a8c;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.entity-card {
+  display: block;
+  background: white;
+  border: 1px solid #e2e6ef;
+  border-radius: 8px;
+  padding: 1.1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.entity-card:hover {
+  border-color: #2d3a8c;
+}
+
+.entity-card h2 {
+  font-size: 1.05rem;
+  margin: 0.5rem 0;
+}
+
+.entity-card-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.section-title {
+  margin-top: 2rem;
+  font-size: 1.15rem;
+}
+
+.muted {
+  color: #777;
+  font-size: 0.85rem;
+}
+
+.vote-stats {
+  background: white;
+  border: 1px solid #e2e6ef;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.vote-stats h3 {
+  font-size: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.vote-stats.empty p {
+  color: #888;
+}
+
+.vote-bar-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 40px;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+.vote-bar-label {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.vote-bar-track {
+  height: 8px;
+  background: #eef0f5;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.vote-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.vote-bar-pour {
+  background: #27ae60;
+}
+
+.vote-bar-contre {
+  background: #c0392b;
+}
+
+.vote-bar-abstention {
+  background: #95a5a6;
+}
+
+.vote-bar-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.loyalty-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-top: 0.85rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.align-yes {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.align-no {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .top-banner {
+    padding: 0.65rem 1.25rem;
+    text-align: left;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .header nav {
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+  }
+
+  .main {
+    padding: 1.25rem;
+  }
+
+  .data-table {
+    display: block;
+    overflow-x: auto;
+  }
 }

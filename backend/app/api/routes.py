@@ -1,21 +1,34 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.db.session import get_db
-from app.models import Article, Candidate, IngestionRun, Interview, ParliamentaryVote, ProgramDocument
+from app.models import (
+    Article,
+    Candidate,
+    IngestionRun,
+    Interview,
+    ParliamentaryGroup,
+    ParliamentaryVote,
+    ProgramDocument,
+)
 from app.schemas import (
     ArticleOut,
     CandidateDetailOut,
     CandidateOut,
+    GroupMemberOut,
     HealthOut,
     IngestionRunOut,
     InterviewOut,
     PaginatedResponse,
+    ParliamentaryGroupDetailOut,
+    ParliamentaryGroupOut,
     ParliamentaryVoteOut,
+    PartyOut,
     ProgramDocumentOut,
+    VoteStatsOut,
 )
 
 router = APIRouter()
@@ -31,14 +44,22 @@ async def health(db: AsyncSession = Depends(get_db)) -> HealthOut:
 
 
 @router.get("/candidates", response_model=list[CandidateOut])
-async def list_candidates(db: AsyncSession = Depends(get_db)) -> list[Candidate]:
-    result = await db.execute(select(Candidate).order_by(Candidate.full_name))
-    return list(result.scalars().all())
+async def list_candidates(db: AsyncSession = Depends(get_db)) -> list[CandidateOut]:
+    result = await db.execute(
+        select(Candidate)
+        .options(selectinload(Candidate.parliamentary_group))
+        .order_by(Candidate.full_name)
+    )
+    return [CandidateOut.model_validate(c) for c in result.scalars().all()]
 
 
 @router.get("/candidates/{slug}", response_model=CandidateDetailOut)
 async def get_candidate(slug: str, db: AsyncSession = Depends(get_db)) -> CandidateDetailOut:
-    result = await db.execute(select(Candidate).where(Candidate.slug == slug))
+    result = await db.execute(
+        select(Candidate)
+        .options(selectinload(Candidate.parliamentary_group))
+        .where(Candidate.slug == slug)
+    )
     candidate = result.scalar_one_or_none()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidat introuvable")
@@ -59,6 +80,9 @@ async def get_candidate(slug: str, db: AsyncSession = Depends(get_db)) -> Candid
     article_count = await db.scalar(
         select(func.count()).select_from(Article).where(Article.candidate_id == candidate.id)
     )
+    vote_stats = await _vote_stats_for_filter(
+        db, ParliamentaryVote.candidate_id == candidate.id
+    )
 
     return CandidateDetailOut(
         id=candidate.id,
@@ -67,10 +91,16 @@ async def get_candidate(slug: str, db: AsyncSession = Depends(get_db)) -> Candid
         party=candidate.party,
         external_ids=candidate.external_ids or {},
         status=candidate.status,
+        parliamentary_group=(
+            ParliamentaryGroupOut.model_validate(candidate.parliamentary_group)
+            if candidate.parliamentary_group
+            else None
+        ),
         interview_count=interview_count or 0,
         program_count=program_count or 0,
         vote_count=vote_count or 0,
         article_count=article_count or 0,
+        vote_stats=vote_stats,
     )
 
 
@@ -123,7 +153,10 @@ async def list_votes(
     offset = (page - 1) * page_size
     result = await db.execute(
         select(ParliamentaryVote)
-        .options(selectinload(ParliamentaryVote.source))
+        .options(
+            selectinload(ParliamentaryVote.source),
+            selectinload(ParliamentaryVote.parliamentary_group),
+        )
         .where(ParliamentaryVote.candidate_id == candidate.id)
         .order_by(ParliamentaryVote.vote_date.desc().nullslast())
         .offset(offset)
@@ -183,6 +216,177 @@ async def list_programs(
     return _paginate(total or 0, page, page_size, items)
 
 
+@router.get("/groups", response_model=list[ParliamentaryGroupDetailOut])
+async def list_groups(db: AsyncSession = Depends(get_db)) -> list[ParliamentaryGroupDetailOut]:
+    result = await db.execute(
+        select(ParliamentaryGroup).order_by(ParliamentaryGroup.name)
+    )
+    groups = list(result.scalars().all())
+    out: list[ParliamentaryGroupDetailOut] = []
+    for group in groups:
+        member_count = await db.scalar(
+            select(func.count())
+            .select_from(Candidate)
+            .where(Candidate.parliamentary_group_id == group.id)
+        )
+        vote_count = await db.scalar(
+            select(func.count())
+            .select_from(ParliamentaryVote)
+            .where(ParliamentaryVote.parliamentary_group_id == group.id)
+        )
+        vote_stats = await _vote_stats_for_filter(
+            db, ParliamentaryVote.parliamentary_group_id == group.id
+        )
+        out.append(
+            ParliamentaryGroupDetailOut(
+                id=group.id,
+                slug=group.slug,
+                name=group.name,
+                full_name=group.full_name,
+                color=group.color,
+                chamber=group.chamber,
+                legislature=group.legislature,
+                spectrum=group.spectrum,
+                member_count=member_count or 0,
+                vote_count=vote_count or 0,
+                vote_stats=vote_stats,
+                members=[],
+            )
+        )
+    return out
+
+
+@router.get("/groups/{slug}", response_model=ParliamentaryGroupDetailOut)
+async def get_group(slug: str, db: AsyncSession = Depends(get_db)) -> ParliamentaryGroupDetailOut:
+    result = await db.execute(
+        select(ParliamentaryGroup).where(ParliamentaryGroup.slug == slug)
+    )
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Groupe introuvable")
+
+    members_result = await db.execute(
+        select(Candidate)
+        .options(selectinload(Candidate.parliamentary_group))
+        .where(Candidate.parliamentary_group_id == group.id)
+        .order_by(Candidate.full_name)
+    )
+    members = list(members_result.scalars().all())
+    member_outs: list[GroupMemberOut] = []
+    for member in members:
+        vote_count = await db.scalar(
+            select(func.count())
+            .select_from(ParliamentaryVote)
+            .where(ParliamentaryVote.candidate_id == member.id)
+        )
+        member_outs.append(
+            GroupMemberOut(
+                id=member.id,
+                slug=member.slug,
+                full_name=member.full_name,
+                party=member.party,
+                status=member.status,
+                vote_count=vote_count or 0,
+                vote_stats=await _vote_stats_for_filter(
+                    db, ParliamentaryVote.candidate_id == member.id
+                ),
+            )
+        )
+
+    vote_count = await db.scalar(
+        select(func.count())
+        .select_from(ParliamentaryVote)
+        .where(ParliamentaryVote.parliamentary_group_id == group.id)
+    )
+    return ParliamentaryGroupDetailOut(
+        id=group.id,
+        slug=group.slug,
+        name=group.name,
+        full_name=group.full_name,
+        color=group.color,
+        chamber=group.chamber,
+        legislature=group.legislature,
+        spectrum=group.spectrum,
+        member_count=len(members),
+        vote_count=vote_count or 0,
+        vote_stats=await _vote_stats_for_filter(
+            db, ParliamentaryVote.parliamentary_group_id == group.id
+        ),
+        members=member_outs,
+    )
+
+
+@router.get("/parties", response_model=list[PartyOut])
+async def list_parties(db: AsyncSession = Depends(get_db)) -> list[PartyOut]:
+    """Vue agrégée par parti politique (champ candidats.party)."""
+    parties_result = await db.execute(
+        select(Candidate.party)
+        .where(Candidate.party.is_not(None))
+        .distinct()
+        .order_by(Candidate.party)
+    )
+    parties = [p for (p,) in parties_result.all() if p]
+    out: list[PartyOut] = []
+    for party in parties:
+        cand_result = await db.execute(
+            select(Candidate)
+            .options(selectinload(Candidate.parliamentary_group))
+            .where(Candidate.party == party)
+            .order_by(Candidate.full_name)
+        )
+        candidates = list(cand_result.scalars().all())
+        candidate_ids = [c.id for c in candidates]
+        vote_count = 0
+        vote_stats = VoteStatsOut()
+        if candidate_ids:
+            vote_count = await db.scalar(
+                select(func.count())
+                .select_from(ParliamentaryVote)
+                .where(ParliamentaryVote.candidate_id.in_(candidate_ids))
+            ) or 0
+            vote_stats = await _vote_stats_for_filter(
+                db, ParliamentaryVote.candidate_id.in_(candidate_ids)
+            )
+        out.append(
+            PartyOut(
+                party=party,
+                candidate_count=len(candidates),
+                vote_count=vote_count,
+                vote_stats=vote_stats,
+                candidates=[CandidateOut.model_validate(c) for c in candidates],
+            )
+        )
+    return out
+
+
+@router.get("/parties/{party}", response_model=PartyOut)
+async def get_party(party: str, db: AsyncSession = Depends(get_db)) -> PartyOut:
+    cand_result = await db.execute(
+        select(Candidate)
+        .options(selectinload(Candidate.parliamentary_group))
+        .where(Candidate.party == party)
+        .order_by(Candidate.full_name)
+    )
+    candidates = list(cand_result.scalars().all())
+    if not candidates:
+        raise HTTPException(status_code=404, detail="Parti introuvable")
+    candidate_ids = [c.id for c in candidates]
+    vote_count = await db.scalar(
+        select(func.count())
+        .select_from(ParliamentaryVote)
+        .where(ParliamentaryVote.candidate_id.in_(candidate_ids))
+    )
+    return PartyOut(
+        party=party,
+        candidate_count=len(candidates),
+        vote_count=vote_count or 0,
+        vote_stats=await _vote_stats_for_filter(
+            db, ParliamentaryVote.candidate_id.in_(candidate_ids)
+        ),
+        candidates=[CandidateOut.model_validate(c) for c in candidates],
+    )
+
+
 @router.get("/ingestion/runs", response_model=list[IngestionRunOut])
 async def list_ingestion_runs(
     limit: int = Query(20, ge=1, le=100),
@@ -214,3 +418,65 @@ async def _get_candidate_or_404(db: AsyncSession, slug: str) -> Candidate:
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidat introuvable")
     return candidate
+
+
+async def _vote_stats_for_filter(db: AsyncSession, *filters) -> VoteStatsOut:
+    stmt = select(
+        func.count().label("total"),
+        func.coalesce(func.sum(case((ParliamentaryVote.position == "pour", 1), else_=0)), 0).label(
+            "pour"
+        ),
+        func.coalesce(
+            func.sum(case((ParliamentaryVote.position == "contre", 1), else_=0)), 0
+        ).label("contre"),
+        func.coalesce(
+            func.sum(case((ParliamentaryVote.position == "abstention", 1), else_=0)), 0
+        ).label("abstention"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        ParliamentaryVote.group_position.is_not(None),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("with_group"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        (ParliamentaryVote.group_position.is_not(None))
+                        & (ParliamentaryVote.position == ParliamentaryVote.group_position),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("aligned"),
+    ).select_from(ParliamentaryVote)
+    for f in filters:
+        stmt = stmt.where(f)
+
+    row = (await db.execute(stmt)).one()
+    total = int(row.total or 0)
+    pour = int(row.pour or 0)
+    contre = int(row.contre or 0)
+    abstention = int(row.abstention or 0)
+    with_group = int(row.with_group or 0)
+    aligned = int(row.aligned or 0)
+    other = max(total - pour - contre - abstention, 0)
+    loyalty = round(aligned / with_group, 3) if with_group else None
+    return VoteStatsOut(
+        total=total,
+        pour=pour,
+        contre=contre,
+        abstention=abstention,
+        other=other,
+        with_group_position=with_group,
+        aligned_with_group=aligned,
+        loyalty_rate=loyalty,
+    )

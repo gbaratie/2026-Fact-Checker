@@ -13,6 +13,7 @@ from app.models import (
     Candidate,
     IngestionRun,
     Interview,
+    ParliamentaryGroup,
     ParliamentaryVote,
     ProgramDocument,
     Source,
@@ -101,21 +102,29 @@ class IngestionOrchestrator:
         return count
 
     async def _ingest_votes(self, candidate: Candidate, run: IngestionRun) -> int:
-        external_ids = candidate.external_ids or {}
-        depute_id = external_ids.get("depute_id")
-        if not depute_id:
-            depute = await self.parliament.search_depute(candidate.full_name)
-            if depute:
-                depute_id = str(depute.get("id") or depute.get("uid") or "")
-                external_ids["depute_id"] = depute_id
-                candidate.external_ids = external_ids
-                await self.session.flush()
+        external_ids = dict(candidate.external_ids or {})
+        clair_slug = external_ids.get("clair_slug")
+        group = None
 
-        if not depute_id:
-            logger.info("No parliamentary ID for %s, skipping votes", candidate.slug)
+        depute = await self.parliament.resolve_depute(
+            candidate.full_name, preferred_slug=clair_slug or candidate.slug
+        )
+        if depute:
+            clair_slug = depute.slug
+            external_ids["clair_slug"] = depute.slug
+            external_ids["clair_id"] = depute.id
+            external_ids["depute_id"] = depute.id
+            candidate.external_ids = external_ids
+            if depute.group:
+                group = await self._upsert_group(depute.group)
+                candidate.parliamentary_group_id = group.id
+            await self.session.flush()
+
+        if not clair_slug:
+            logger.info("No CLAIR deputy match for %s, skipping votes", candidate.slug)
             return 0
 
-        records = await self.parliament.fetch_votes_for_depute(depute_id)
+        records = await self.parliament.fetch_votes_for_depute(clair_slug)
         count = 0
         for record in records:
             existing = await self.session.execute(
@@ -139,16 +148,21 @@ class IngestionOrchestrator:
             if vote:
                 vote.title = record.title
                 vote.position = record.position
+                vote.group_position = record.group_position
                 vote.vote_date = record.vote_date
                 vote.source_id = source.id
+                if group:
+                    vote.parliamentary_group_id = group.id
             else:
                 vote = ParliamentaryVote(
                     candidate_id=candidate.id,
                     source_id=source.id,
+                    parliamentary_group_id=group.id if group else None,
                     chamber=record.chamber,
                     scrutin_id=record.scrutin_id,
                     title=record.title,
                     position=record.position,
+                    group_position=record.group_position,
                     vote_date=record.vote_date,
                 )
                 self.session.add(vote)
@@ -156,6 +170,37 @@ class IngestionOrchestrator:
 
         await self.session.flush()
         return count
+
+    async def _upsert_group(self, info) -> ParliamentaryGroup:
+        result = await self.session.execute(
+            select(ParliamentaryGroup).where(ParliamentaryGroup.clair_id == info.clair_id)
+        )
+        group = result.scalar_one_or_none()
+        if group:
+            group.slug = info.slug
+            group.name = info.name
+            group.full_name = info.full_name
+            group.color = info.color
+            group.chamber = info.chamber
+            group.legislature = info.legislature
+            group.spectrum = info.spectrum
+            group.raw_metadata = info.raw
+            return group
+
+        group = ParliamentaryGroup(
+            clair_id=info.clair_id,
+            slug=info.slug,
+            name=info.name,
+            full_name=info.full_name,
+            color=info.color,
+            chamber=info.chamber,
+            legislature=info.legislature,
+            spectrum=info.spectrum,
+            raw_metadata=info.raw,
+        )
+        self.session.add(group)
+        await self.session.flush()
+        return group
 
     async def _ingest_articles(self, candidate: Candidate, run: IngestionRun) -> int:
         records = await self.press.fetch_articles_for_candidate(candidate.full_name)

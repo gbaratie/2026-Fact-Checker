@@ -8,6 +8,25 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 
 
+class ParliamentaryGroup(Base):
+    __tablename__ = "parliamentary_groups"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    clair_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    slug: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    color: Mapped[str | None] = mapped_column(String(20))
+    chamber: Mapped[str] = mapped_column(String(20), nullable=False, default="assemblee")
+    legislature: Mapped[int | None] = mapped_column(Integer)
+    spectrum: Mapped[str | None] = mapped_column(String(50))
+    raw_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    candidates: Mapped[list["Candidate"]] = relationship(back_populates="parliamentary_group")
+    votes: Mapped[list["ParliamentaryVote"]] = relationship(back_populates="parliamentary_group")
+
+
 class Candidate(Base):
     __tablename__ = "candidates"
 
@@ -17,10 +36,18 @@ class Candidate(Base):
     party: Mapped[str | None] = mapped_column(String(120))
     external_ids: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(50), default="potential")
+    parliamentary_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("parliamentary_groups.id"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    parliamentary_group: Mapped["ParliamentaryGroup | None"] = relationship(
+        back_populates="candidates"
+    )
     interviews: Mapped[list["Interview"]] = relationship(back_populates="candidate")
-    parliamentary_votes: Mapped[list["ParliamentaryVote"]] = relationship(back_populates="candidate")
+    parliamentary_votes: Mapped[list["ParliamentaryVote"]] = relationship(
+        back_populates="candidate"
+    )
     articles: Mapped[list["Article"]] = relationship(back_populates="candidate")
     program_documents: Mapped[list["ProgramDocument"]] = relationship(back_populates="candidate")
 
@@ -75,13 +102,18 @@ class ParliamentaryVote(Base):
     source_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sources.id"), nullable=False
     )
+    parliamentary_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("parliamentary_groups.id"), nullable=True
+    )
     chamber: Mapped[str] = mapped_column(String(20), nullable=False)
     scrutin_id: Mapped[str] = mapped_column(String(100), nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     position: Mapped[str] = mapped_column(String(50), nullable=False)
+    group_position: Mapped[str | None] = mapped_column(String(50))
     vote_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     candidate: Mapped["Candidate"] = relationship(back_populates="parliamentary_votes")
+    parliamentary_group: Mapped["ParliamentaryGroup | None"] = relationship(back_populates="votes")
     source: Mapped["Source"] = relationship()
 
 

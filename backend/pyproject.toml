@@ -41,3 +41,12 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint]
+# B008: FastAPI Depends()/Query()/Header() in defaults is idiomatic.
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Connectors wrap flaky external APIs; broad catches are intentional.
+"app/api/routes.py" = ["BLE001"]
+"app/connectors/*.py" = ["BLE001", "DTZ001"]

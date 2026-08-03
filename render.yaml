@@ -15,19 +15,3 @@ services:
         generateValue: true
       - key: CORS_ORIGINS
         sync: false
-    buildCommand: ""
-    startCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
-
-  - type: cron
-    name: fact-checker-ingest
-    runtime: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    schedule: "0 6 * * *"
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: YOUTUBE_API_KEY
-        sync: false
-    buildCommand: ""
-    startCommand: sh -c "alembic upgrade head && python -m app.ingestion.run"

@@ -7,7 +7,7 @@ Collecte et exploration structurée des données sur les candidats à la présid
 - **Backend** : Python 3.12, FastAPI, SQLAlchemy, Alembic — hébergé sur [Render](https://render.com)
 - **Base de données** : PostgreSQL sur [Neon](https://neon.tech)
 - **Frontend** : React + Vite — hébergé sur GitHub Pages
-- **Ingestion** : Cron Render quotidien (6h UTC)
+- **Ingestion** : GitHub Actions quotidien (6h UTC)
 
 ## Sources de données
 
@@ -56,7 +56,11 @@ Interface sur http://localhost:5173.
 ### 4. Lancer une ingestion
 
 ```bash
+# Tout (YouTube + votes + presse)
 make ingest
+
+# Votes Assemblée uniquement (CLAIR.vote)
+make ingest-votes
 ```
 
 ## API
@@ -65,11 +69,15 @@ make ingest
 |----------|-------------|
 | `GET /health` | Santé de l'API et de la DB |
 | `GET /candidates` | Liste des candidats |
-| `GET /candidates/{slug}` | Détail avec compteurs |
+| `GET /candidates/{slug}` | Détail avec compteurs + stats de vote |
 | `GET /candidates/{slug}/interviews` | Interviews paginées |
 | `GET /candidates/{slug}/votes` | Votes parlementaires paginés |
 | `GET /candidates/{slug}/articles` | Articles paginés |
 | `GET /candidates/{slug}/programs` | Documents de programme paginés |
+| `GET /groups` | Groupes parlementaires AN liés |
+| `GET /groups/{slug}` | Détail groupe + membres + stats |
+| `GET /parties` | Agrégation par parti politique |
+| `GET /parties/{party}` | Détail parti + candidats |
 | `GET /ingestion/runs` | Historique des collectes |
 | `POST /ingestion/trigger` | Déclenchement manuel (header `X-Ingestion-Secret`) |
 
@@ -84,7 +92,7 @@ make ingest
 ### Render
 
 1. Connecter le repo GitHub à Render
-2. Appliquer le Blueprint [`render.yaml`](render.yaml)
+2. Appliquer le Blueprint [`render.yaml`](render.yaml) (API web uniquement, plan free)
 3. Renseigner les variables d'environnement :
    - `DATABASE_URL` — connection string Neon
    - `YOUTUBE_API_KEY` — clé API Google Cloud
@@ -95,6 +103,17 @@ make ingest
 1. Activer GitHub Pages (source : GitHub Actions) dans les paramètres du repo
 2. Ajouter une variable de repo `VITE_API_URL` pointant vers l'URL Render de l'API
 3. Le workflow `.github/workflows/deploy-frontend.yml` déploie automatiquement à chaque push sur `main`
+
+### Ingestion (GitHub Actions)
+
+Le workflow [`.github/workflows/ingest.yml`](.github/workflows/ingest.yml) tourne tous les jours à 6h UTC (et peut être lancé manuellement).
+
+Secrets à ajouter dans **Settings → Secrets and variables → Actions** :
+
+| Secret | Description |
+|--------|-------------|
+| `DATABASE_URL` | Connection string Neon (`postgresql+asyncpg://...`) |
+| `YOUTUBE_API_KEY` | Clé API Google Cloud (optionnel) |
 
 ## Gestion des candidats
 
@@ -111,8 +130,9 @@ Le script tente un matching automatique des IDs parlementaires via CLAIR.vote.
 ```
 backend/          API FastAPI + connecteurs + ingestion
 frontend/         Interface d'exploration React
-render.yaml       Blueprint Render (API + cron)
+render.yaml       Blueprint Render (API web free)
 docker-compose.yml Développement local
+.github/workflows  CI, Pages, ingestion quotidienne
 ```
 
 ## Phase 2 (prévu)
