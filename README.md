@@ -128,8 +128,9 @@ Le script tente un matching automatique des IDs parlementaires via CLAIR.vote.
 ```
 backend/          API FastAPI + connecteurs + ingestion
 frontend/         Interface d'exploration React
-render.yaml       Blueprint Render (API + cron)
+render.yaml       Blueprint Render (API web free)
 docker-compose.yml Développement local
+.github/workflows  CI, Pages, ingestion quotidienne
 ```
 
 ## Phase 2 (prévu)
