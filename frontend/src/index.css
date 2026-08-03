@@ -15,6 +15,21 @@
   min-height: 100vh;
 }
 
+.top-banner {
+  background: #e8ecf8;
+  border-bottom: 1px solid #c5cde3;
+  color: #1a1a2e;
+  padding: 0.65rem 2rem;
+  text-align: center;
+}
+
+.top-banner p {
+  margin: 0 auto;
+  max-width: 1100px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -394,6 +409,11 @@ h1 {
 }
 
 @media (max-width: 700px) {
+  .top-banner {
+    padding: 0.65rem 1.25rem;
+    text-align: left;
+  }
+
   .header {
     flex-direction: column;
     align-items: flex-start;
