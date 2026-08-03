@@ -1,15 +1,56 @@
-from pydantic import field_validator
+from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+from pydantic import PrivateAttr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Paramètres libpq passés en kwargs par SQLAlchemy — non supportés par asyncpg.connect()
+_ASYNCPG_UNSUPPORTED_QUERY_KEYS = frozenset(
+    {
+        "sslmode",
+        "sslrootcert",
+        "sslcert",
+        "sslkey",
+        "sslcrl",
+        "channel_binding",
+    }
+)
 
-def normalize_database_url(url: str) -> str:
-    """Ensure async SQLAlchemy driver and strip accidental whitespace/quotes."""
+
+def prepare_database_url(url: str) -> tuple[str, dict[str, Any]]:
+    """Normalise l'URL pour SQLAlchemy+asyncpg et calcule connect_args (SSL Neon)."""
     cleaned = url.strip().strip('"').strip("'")
     if cleaned.startswith("postgres://"):
         cleaned = "postgresql://" + cleaned[len("postgres://") :]
     if cleaned.startswith("postgresql://"):
         cleaned = "postgresql+asyncpg://" + cleaned[len("postgresql://") :]
-    return cleaned
+
+    parsed = urlparse(cleaned)
+    query_items = parse_qsl(parsed.query, keep_blank_values=True)
+    kept: list[tuple[str, str]] = []
+    ssl_required = False
+
+    for key, value in query_items:
+        lower = key.lower()
+        if lower in _ASYNCPG_UNSUPPORTED_QUERY_KEYS:
+            if lower == "sslmode" and value.lower() not in {"disable", "allow", "prefer"}:
+                ssl_required = True
+            continue
+        kept.append((key, value))
+
+    host = (parsed.hostname or "").lower()
+    if "neon.tech" in host:
+        ssl_required = True
+
+    normalized = urlunparse(parsed._replace(query=urlencode(kept)))
+    connect_args: dict[str, Any] = {"ssl": True} if ssl_required else {}
+    return normalized, connect_args
+
+
+def normalize_database_url(url: str) -> str:
+    """Ensure async SQLAlchemy driver and strip asyncpg-incompatible query params."""
+    normalized, _ = prepare_database_url(url)
+    return normalized
 
 
 class Settings(BaseSettings):
@@ -31,17 +72,31 @@ class Settings(BaseSettings):
         "https://www.lefigaro.fr/rss/figaro_politique.xml",
     ]
 
+    _database_connect_args: dict[str, Any] = PrivateAttr(default_factory=dict)
+
     @field_validator("database_url")
     @classmethod
-    def validate_database_url(cls, value: str) -> str:
-        normalized = normalize_database_url(value)
-        if not normalized or "://" not in normalized:
+    def reject_blank_database_url(cls, value: str) -> str:
+        if not value or not value.strip().strip('"').strip("'"):
             raise ValueError(
                 "DATABASE_URL manquante ou invalide. "
                 "Sur Render, colle la connection string Neon "
                 "(ex. postgresql://... ou postgresql+asyncpg://...)."
             )
-        return normalized
+        return value
+
+    @model_validator(mode="after")
+    def normalize_database(self) -> "Settings":
+        normalized, connect_args = prepare_database_url(self.database_url)
+        if "://" not in normalized:
+            raise ValueError("DATABASE_URL manquante ou invalide.")
+        self.database_url = normalized
+        self._database_connect_args = connect_args
+        return self
+
+    @property
+    def database_connect_args(self) -> dict[str, Any]:
+        return self._database_connect_args
 
     @property
     def cors_origins_list(self) -> list[str]:
