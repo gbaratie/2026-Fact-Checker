@@ -97,21 +97,26 @@ class IngestionOrchestrator:
         return count
 
     async def _ingest_votes(self, candidate: Candidate, run: IngestionRun) -> int:
-        external_ids = candidate.external_ids or {}
-        depute_id = external_ids.get("depute_id")
-        if not depute_id:
-            depute = await self.parliament.search_depute(candidate.full_name)
+        external_ids = dict(candidate.external_ids or {})
+        clair_slug = external_ids.get("clair_slug")
+
+        if not clair_slug:
+            depute = await self.parliament.resolve_depute(
+                candidate.full_name, preferred_slug=candidate.slug
+            )
             if depute:
-                depute_id = str(depute.get("id") or depute.get("uid") or "")
-                external_ids["depute_id"] = depute_id
+                clair_slug = depute.slug
+                external_ids["clair_slug"] = depute.slug
+                external_ids["clair_id"] = depute.id
+                external_ids["depute_id"] = depute.id  # rétrocompat
                 candidate.external_ids = external_ids
                 await self.session.flush()
 
-        if not depute_id:
-            logger.info("No parliamentary ID for %s, skipping votes", candidate.slug)
+        if not clair_slug:
+            logger.info("No CLAIR deputy match for %s, skipping votes", candidate.slug)
             return 0
 
-        records = await self.parliament.fetch_votes_for_depute(depute_id)
+        records = await self.parliament.fetch_votes_for_depute(clair_slug)
         count = 0
         for record in records:
             existing = await self.session.execute(
