@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,6 +22,7 @@ class Candidate(Base):
     interviews: Mapped[list["Interview"]] = relationship(back_populates="candidate")
     parliamentary_votes: Mapped[list["ParliamentaryVote"]] = relationship(back_populates="candidate")
     articles: Mapped[list["Article"]] = relationship(back_populates="candidate")
+    program_documents: Mapped[list["ProgramDocument"]] = relationship(back_populates="candidate")
 
 
 class Source(Base):
@@ -102,6 +103,31 @@ class Article(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     candidate: Mapped["Candidate"] = relationship(back_populates="articles")
+    source: Mapped["Source"] = relationship()
+
+
+class ProgramDocument(Base):
+    __tablename__ = "program_documents"
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "url", name="uq_program_documents_candidate_url"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("candidates.id"), nullable=False, index=True
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sources.id"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(String(50), nullable=False)
+    year: Mapped[int | None] = mapped_column(Integer)
+    publisher: Mapped[str | None] = mapped_column(String(255))
+    excerpt: Mapped[str | None] = mapped_column(Text)
+    note: Mapped[str | None] = mapped_column(Text)
+
+    candidate: Mapped["Candidate"] = relationship(back_populates="program_documents")
     source: Mapped["Source"] = relationship()
 
 

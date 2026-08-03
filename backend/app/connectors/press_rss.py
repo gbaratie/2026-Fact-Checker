@@ -13,6 +13,32 @@ from app.utils.text import candidate_mentioned
 
 logger = logging.getLogger(__name__)
 
+USER_AGENT = "FactChecker2026/0.1 (+https://github.com/fact-checker)"
+
+PUBLISHER_BY_DOMAIN: dict[str, str] = {
+    "www.lemonde.fr": "Le Monde",
+    "www.franceinfo.fr": "franceinfo",
+    "www.francetvinfo.fr": "franceinfo",
+    "www.lefigaro.fr": "Le Figaro",
+    "www.liberation.fr": "Libération",
+    "www.lexpress.fr": "L'Express",
+    "www.nouvelobs.com": "Le Nouvel Obs",
+    "www.leparisien.fr": "Le Parisien",
+    "feeds.leparisien.fr": "Le Parisien",
+    "www.20minutes.fr": "20 Minutes",
+    "www.bfmtv.com": "BFMTV",
+    "www.france24.com": "France 24",
+    "www.publicsenat.fr": "Public Sénat",
+    "www.mediapart.fr": "Mediapart",
+    "www.politico.eu": "POLITICO",
+    "www.huffingtonpost.fr": "HuffPost",
+    "www.challenges.fr": "Challenges",
+    "www.slate.fr": "Slate",
+    "www.humanite.fr": "L'Humanité",
+    "www.la-croix.com": "La Croix",
+    "www.sudouest.fr": "Sud Ouest",
+}
+
 
 @dataclass
 class ArticleRecord:
@@ -36,8 +62,9 @@ class PressRSSConnector:
 
         for feed_url in self.feeds:
             try:
-                feed = feedparser.parse(feed_url)
-                publisher = feed.feed.get("title") or urlparse(feed_url).netloc
+                feed = await self._parse_feed(feed_url)
+                publisher = self._publisher_for_feed(feed_url, feed)
+                feed_title = feed.feed.get("title") or publisher
                 count = 0
                 for entry in feed.entries:
                     if count >= max_per_feed:
@@ -59,7 +86,12 @@ class PressRSSConnector:
                             publisher=publisher,
                             excerpt=excerpt,
                             published_at=published_at,
-                            raw_metadata={"feed_url": feed_url},
+                            raw_metadata={
+                                "retrieved_via": "rss",
+                                "feed_url": feed_url,
+                                "feed_title": feed_title,
+                                "publisher": publisher,
+                            },
                         )
                     )
                     seen_urls.add(url)
@@ -69,10 +101,23 @@ class PressRSSConnector:
 
         return records
 
+    async def _parse_feed(self, feed_url: str):
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+            resp = await client.get(feed_url, headers={"User-Agent": USER_AGENT})
+            resp.raise_for_status()
+            return feedparser.parse(resp.text)
+
+    @staticmethod
+    def _publisher_for_feed(feed_url: str, feed) -> str:
+        domain = urlparse(feed_url).netloc.lower()
+        if domain in PUBLISHER_BY_DOMAIN:
+            return PUBLISHER_BY_DOMAIN[domain]
+        return feed.feed.get("title") or domain
+
     async def _extract_excerpt(self, url: str, fallback: str) -> str | None:
         try:
             async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
-                resp = await client.get(url, headers={"User-Agent": "FactChecker2026/0.1"})
+                resp = await client.get(url, headers={"User-Agent": USER_AGENT})
                 resp.raise_for_status()
                 text = trafilatura.extract(resp.text, include_comments=False)
                 if text:

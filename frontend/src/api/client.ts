@@ -6,6 +6,7 @@ export interface Source {
   url: string;
   publisher: string | null;
   fetched_at: string;
+  raw_metadata?: Record<string, string | number | null>;
 }
 
 export interface Candidate {
@@ -19,6 +20,7 @@ export interface Candidate {
 
 export interface CandidateDetail extends Candidate {
   interview_count: number;
+  program_count: number;
   vote_count: number;
   article_count: number;
 }
@@ -53,6 +55,18 @@ export interface Article {
   source: Source;
 }
 
+export interface ProgramDocument {
+  id: string;
+  title: string;
+  url: string;
+  kind: string;
+  year: number | null;
+  publisher: string | null;
+  excerpt: string | null;
+  note: string | null;
+  source: Source;
+}
+
 export interface IngestionRun {
   id: string;
   status: string;
@@ -81,6 +95,8 @@ export const api = {
   candidate: (slug: string) => fetchJson<CandidateDetail>(`/candidates/${slug}`),
   interviews: (slug: string, page = 1) =>
     fetchJson<Paginated<Interview>>(`/candidates/${slug}/interviews?page=${page}`),
+  programs: (slug: string, page = 1) =>
+    fetchJson<Paginated<ProgramDocument>>(`/candidates/${slug}/programs?page=${page}`),
   votes: (slug: string, page = 1) =>
     fetchJson<Paginated<ParliamentaryVote>>(`/candidates/${slug}/votes?page=${page}`),
   articles: (slug: string, page = 1) =>
