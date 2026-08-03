@@ -7,7 +7,7 @@ Collecte et exploration structurée des données sur les candidats à la présid
 - **Backend** : Python 3.12, FastAPI, SQLAlchemy, Alembic — hébergé sur [Render](https://render.com)
 - **Base de données** : PostgreSQL sur [Neon](https://neon.tech)
 - **Frontend** : React + Vite — hébergé sur GitHub Pages
-- **Ingestion** : Cron Render quotidien (6h UTC)
+- **Ingestion** : GitHub Actions quotidien (6h UTC)
 
 ## Sources de données
 
@@ -90,7 +90,7 @@ make ingest-votes
 ### Render
 
 1. Connecter le repo GitHub à Render
-2. Appliquer le Blueprint [`render.yaml`](render.yaml)
+2. Appliquer le Blueprint [`render.yaml`](render.yaml) (API web uniquement, plan free)
 3. Renseigner les variables d'environnement :
    - `DATABASE_URL` — connection string Neon
    - `YOUTUBE_API_KEY` — clé API Google Cloud
@@ -101,6 +101,17 @@ make ingest-votes
 1. Activer GitHub Pages (source : GitHub Actions) dans les paramètres du repo
 2. Ajouter une variable de repo `VITE_API_URL` pointant vers l'URL Render de l'API
 3. Le workflow `.github/workflows/deploy-frontend.yml` déploie automatiquement à chaque push sur `main`
+
+### Ingestion (GitHub Actions)
+
+Le workflow [`.github/workflows/ingest.yml`](.github/workflows/ingest.yml) tourne tous les jours à 6h UTC (et peut être lancé manuellement).
+
+Secrets à ajouter dans **Settings → Secrets and variables → Actions** :
+
+| Secret | Description |
+|--------|-------------|
+| `DATABASE_URL` | Connection string Neon (`postgresql+asyncpg://...`) |
+| `YOUTUBE_API_KEY` | Clé API Google Cloud (optionnel) |
 
 ## Gestion des candidats
 
