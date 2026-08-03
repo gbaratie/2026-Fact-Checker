@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 
 class SourceOut(BaseModel):
@@ -14,6 +14,19 @@ class SourceOut(BaseModel):
     fetched_at: datetime
 
 
+class ParliamentaryGroupOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    slug: str
+    name: str
+    full_name: str
+    color: str | None
+    chamber: str
+    legislature: int | None
+    spectrum: str | None
+
+
 class CandidateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -23,12 +36,25 @@ class CandidateOut(BaseModel):
     party: str | None
     external_ids: dict
     status: str
+    parliamentary_group: ParliamentaryGroupOut | None = None
+
+
+class VoteStatsOut(BaseModel):
+    total: int = 0
+    pour: int = 0
+    contre: int = 0
+    abstention: int = 0
+    other: int = 0
+    with_group_position: int = 0
+    aligned_with_group: int = 0
+    loyalty_rate: float | None = None
 
 
 class CandidateDetailOut(CandidateOut):
     interview_count: int = 0
     vote_count: int = 0
     article_count: int = 0
+    vote_stats: VoteStatsOut | None = None
 
 
 class InterviewOut(BaseModel):
@@ -51,8 +77,17 @@ class ParliamentaryVoteOut(BaseModel):
     scrutin_id: str
     title: str
     position: str
+    group_position: str | None = None
     vote_date: datetime | None
     source: SourceOut
+    parliamentary_group: ParliamentaryGroupOut | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def aligned_with_group(self) -> bool | None:
+        if not self.group_position:
+            return None
+        return self.position == self.group_position
 
 
 class ArticleOut(BaseModel):
@@ -65,6 +100,33 @@ class ArticleOut(BaseModel):
     excerpt: str | None
     published_at: datetime | None
     source: SourceOut
+
+
+class GroupMemberOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    slug: str
+    full_name: str
+    party: str | None
+    status: str
+    vote_count: int = 0
+    vote_stats: VoteStatsOut | None = None
+
+
+class ParliamentaryGroupDetailOut(ParliamentaryGroupOut):
+    member_count: int = 0
+    vote_count: int = 0
+    vote_stats: VoteStatsOut | None = None
+    members: list[GroupMemberOut] = []
+
+
+class PartyOut(BaseModel):
+    party: str
+    candidate_count: int
+    vote_count: int
+    vote_stats: VoteStatsOut | None = None
+    candidates: list[CandidateOut] = []
 
 
 class IngestionRunOut(BaseModel):

@@ -7,14 +7,21 @@ import {
   Interview,
   ParliamentaryVote,
 } from '../api/client';
-import { ErrorMessage, formatDate, Loading, SourceLink } from '../components/Layout';
+import {
+  ErrorMessage,
+  formatDate,
+  GroupBadge,
+  Loading,
+  SourceLink,
+  VoteStatsPanel,
+} from '../components/Layout';
 
-type Tab = 'interviews' | 'votes' | 'articles';
+type Tab = 'votes' | 'interviews' | 'articles';
 
 export function CandidateDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [candidate, setCandidate] = useState<CandidateDetail | null>(null);
-  const [tab, setTab] = useState<Tab>('interviews');
+  const [tab, setTab] = useState<Tab>('votes');
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [votes, setVotes] = useState<ParliamentaryVote[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
@@ -42,6 +49,8 @@ export function CandidateDetailPage() {
   if (error) return <ErrorMessage message={error} />;
   if (!candidate) return <Loading />;
 
+  const group = candidate.parliamentary_group;
+
   return (
     <div>
       <Link to="/candidates" className="back-link">
@@ -49,18 +58,26 @@ export function CandidateDetailPage() {
       </Link>
       <h1>{candidate.full_name}</h1>
       <p className="meta">
-        {candidate.party && <span>{candidate.party}</span>}
+        {candidate.party && (
+          <Link to={`/parties/${encodeURIComponent(candidate.party)}`} className="meta-link">
+            Parti : {candidate.party}
+          </Link>
+        )}
+        {group && (
+          <GroupBadge name={group.name} color={group.color} to={`/groups/${group.slug}`} />
+        )}
         <span className={`badge badge-${candidate.status}`}>{candidate.status}</span>
       </p>
+      {group && <p className="group-fullname">{group.full_name}</p>}
 
       <div className="stats-grid">
         <div className="stat-card">
-          <span className="stat-value">{candidate.interview_count}</span>
-          <span className="stat-label">Interviews</span>
-        </div>
-        <div className="stat-card">
           <span className="stat-value">{candidate.vote_count}</span>
           <span className="stat-label">Votes</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{candidate.interview_count}</span>
+          <span className="stat-label">Interviews</span>
         </div>
         <div className="stat-card">
           <span className="stat-value">{candidate.article_count}</span>
@@ -68,20 +85,72 @@ export function CandidateDetailPage() {
         </div>
       </div>
 
+      <VoteStatsPanel stats={candidate.vote_stats} title="Profil de vote" />
+
       <div className="tabs">
+        <button className={tab === 'votes' ? 'active' : ''} onClick={() => setTab('votes')}>
+          Votes ({candidate.vote_count})
+        </button>
         <button
           className={tab === 'interviews' ? 'active' : ''}
           onClick={() => setTab('interviews')}
         >
           Interviews ({candidate.interview_count})
         </button>
-        <button className={tab === 'votes' ? 'active' : ''} onClick={() => setTab('votes')}>
-          Votes ({candidate.vote_count})
-        </button>
         <button className={tab === 'articles' ? 'active' : ''} onClick={() => setTab('articles')}>
           Articles ({candidate.article_count})
         </button>
       </div>
+
+      {tab === 'votes' && (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Scrutin</th>
+              <th>Position</th>
+              <th>Groupe</th>
+              <th>Aligné</th>
+              <th>Date</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            {votes.map((v) => (
+              <tr key={v.id}>
+                <td>{v.title}</td>
+                <td>
+                  <span className={`vote-${v.position}`}>{v.position}</span>
+                </td>
+                <td>
+                  {v.group_position ? (
+                    <span className={`vote-${v.group_position}`}>{v.group_position}</span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td>
+                  {v.aligned_with_group == null ? (
+                    '—'
+                  ) : v.aligned_with_group ? (
+                    <span className="align-yes">oui</span>
+                  ) : (
+                    <span className="align-no">non</span>
+                  )}
+                </td>
+                <td>{formatDate(v.vote_date)}</td>
+                <td>
+                  <SourceLink url={v.source.url} />
+                </td>
+              </tr>
+            ))}
+            {votes.length === 0 && (
+              <tr>
+                <td colSpan={6}>Aucun vote collecté</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
 
       {tab === 'interviews' && (
         <table className="data-table">
@@ -109,40 +178,6 @@ export function CandidateDetailPage() {
             {interviews.length === 0 && (
               <tr>
                 <td colSpan={5}>Aucune interview collectée</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      )}
-
-      {tab === 'votes' && (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Scrutin</th>
-              <th>Chambre</th>
-              <th>Position</th>
-              <th>Date</th>
-              <th>Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {votes.map((v) => (
-              <tr key={v.id}>
-                <td>{v.title}</td>
-                <td>{v.chamber}</td>
-                <td>
-                  <span className={`vote-${v.position}`}>{v.position}</span>
-                </td>
-                <td>{formatDate(v.vote_date)}</td>
-                <td>
-                  <SourceLink url={v.source.url} />
-                </td>
-              </tr>
-            ))}
-            {votes.length === 0 && (
-              <tr>
-                <td colSpan={5}>Aucun vote collecté</td>
               </tr>
             )}
           </tbody>
