@@ -45,6 +45,7 @@ def test_parse_clair_votes_uses_scrutin_numero():
         "data": [
             {
                 "position": "contre",
+                "groupePosition": "contre",
                 "scrutin": {
                     "id": "uuid-1",
                     "numero": 8434,
@@ -59,4 +60,33 @@ def test_parse_clair_votes_uses_scrutin_numero():
     assert len(records) == 1
     assert records[0].scrutin_id == "8434"
     assert records[0].position == "contre"
+    assert records[0].group_position == "contre"
     assert records[0].chamber == "assemblee"
+
+
+def test_parse_group_from_depute_payload():
+    connector = ParliamentConnector()
+    match = connector._to_match(
+        {
+            "id": "86d",
+            "slug": "francois-ruffin",
+            "prenom": "François",
+            "nom": "Ruffin",
+            "actif": True,
+            "groupe": {
+                "id": "g1",
+                "slug": "ecos",
+                "nom": "ECOS",
+                "nomComplet": "Écologiste et Social",
+                "couleur": "#77AA79",
+                "chambre": "assemblee",
+                "legislature": 17,
+                "position": "gauche",
+            },
+        }
+    )
+    assert match is not None
+    assert match.group is not None
+    assert match.group.slug == "ecos"
+    assert match.group.name == "ECOS"
+    assert match.group.color == "#77AA79"

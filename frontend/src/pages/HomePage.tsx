@@ -50,6 +50,12 @@ export function HomePage() {
         <Link to="/candidates" className="btn">
           Voir les candidats
         </Link>
+        <Link to="/groups" className="btn btn-secondary">
+          Groupes AN
+        </Link>
+        <Link to="/parties" className="btn btn-secondary">
+          Partis
+        </Link>
         <Link to="/ingestion" className="btn btn-secondary">
           Historique d'ingestion
         </Link>

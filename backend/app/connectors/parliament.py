@@ -18,9 +18,23 @@ class VoteRecord:
     scrutin_id: str
     title: str
     position: str
+    group_position: str | None
     vote_date: datetime | None
     source_url: str
     raw_metadata: dict
+
+
+@dataclass
+class GroupInfo:
+    clair_id: str
+    slug: str
+    name: str
+    full_name: str
+    color: str | None
+    chamber: str
+    legislature: int | None
+    spectrum: str | None
+    raw: dict
 
 
 @dataclass
@@ -29,6 +43,7 @@ class DeputeMatch:
     slug: str
     full_name: str
     actif: bool
+    group: GroupInfo | None
     raw: dict
 
 
@@ -188,6 +203,10 @@ class ParliamentConnector:
                 or item.get("choix")
                 or "unknown"
             )
+            group_position_raw = item.get("groupePosition") or item.get("group_position")
+            group_position = (
+                str(group_position_raw).lower() if group_position_raw else None
+            )
             vote_date = self._parse_date(
                 scrutin.get("date") or item.get("date") or scrutin.get("dateScrutin")
             )
@@ -203,6 +222,7 @@ class ParliamentConnector:
                     scrutin_id=scrutin_id,
                     title=str(title)[:500],
                     position=str(position).lower(),
+                    group_position=group_position,
                     vote_date=vote_date,
                     source_url=source_url,
                     raw_metadata=item,
@@ -252,6 +272,7 @@ class ParliamentConnector:
                                         scrutin_id=scrutin_uid,
                                         title=str(titre)[:500],
                                         position=vote_type.lower(),
+                                        group_position=None,
                                         vote_date=vote_date,
                                         source_url=(
                                             "https://data.assemblee-nationale.fr/"
@@ -291,8 +312,8 @@ class ParliamentConnector:
         )
         return None
 
-    @staticmethod
-    def _to_match(data: dict | None) -> DeputeMatch | None:
+    @classmethod
+    def _to_match(cls, data: dict | None) -> DeputeMatch | None:
         if not isinstance(data, dict):
             return None
         slug = str(data.get("slug") or "").strip()
@@ -307,6 +328,30 @@ class ParliamentConnector:
             slug=slug,
             full_name=full_name,
             actif=bool(data.get("actif", False)),
+            group=cls._parse_group(data.get("groupe")),
+            raw=data,
+        )
+
+    @staticmethod
+    def _parse_group(data: dict | None) -> GroupInfo | None:
+        if not isinstance(data, dict):
+            return None
+        clair_id = str(data.get("id") or "").strip()
+        slug = str(data.get("slug") or "").strip()
+        name = str(data.get("nom") or "").strip()
+        full_name = str(data.get("nomComplet") or name).strip()
+        if not clair_id or not slug or not name:
+            return None
+        legislature = data.get("legislature")
+        return GroupInfo(
+            clair_id=clair_id,
+            slug=slug,
+            name=name[:120],
+            full_name=full_name[:255],
+            color=(str(data["couleur"])[:20] if data.get("couleur") else None),
+            chamber=str(data.get("chambre") or "assemblee"),
+            legislature=int(legislature) if legislature is not None else None,
+            spectrum=(str(data["position"])[:50] if data.get("position") else None),
             raw=data,
         )
 

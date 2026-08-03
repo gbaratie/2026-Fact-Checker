@@ -8,6 +8,28 @@ export interface Source {
   fetched_at: string;
 }
 
+export interface ParliamentaryGroup {
+  id: string;
+  slug: string;
+  name: string;
+  full_name: string;
+  color: string | null;
+  chamber: string;
+  legislature: number | null;
+  spectrum: string | null;
+}
+
+export interface VoteStats {
+  total: number;
+  pour: number;
+  contre: number;
+  abstention: number;
+  other: number;
+  with_group_position: number;
+  aligned_with_group: number;
+  loyalty_rate: number | null;
+}
+
 export interface Candidate {
   id: string;
   slug: string;
@@ -15,12 +37,14 @@ export interface Candidate {
   party: string | null;
   external_ids: Record<string, string>;
   status: string;
+  parliamentary_group: ParliamentaryGroup | null;
 }
 
 export interface CandidateDetail extends Candidate {
   interview_count: number;
   vote_count: number;
   article_count: number;
+  vote_stats: VoteStats | null;
 }
 
 export interface Interview {
@@ -39,8 +63,11 @@ export interface ParliamentaryVote {
   scrutin_id: string;
   title: string;
   position: string;
+  group_position: string | null;
+  aligned_with_group: boolean | null;
   vote_date: string | null;
   source: Source;
+  parliamentary_group: ParliamentaryGroup | null;
 }
 
 export interface Article {
@@ -51,6 +78,31 @@ export interface Article {
   excerpt: string | null;
   published_at: string | null;
   source: Source;
+}
+
+export interface GroupMember {
+  id: string;
+  slug: string;
+  full_name: string;
+  party: string | null;
+  status: string;
+  vote_count: number;
+  vote_stats: VoteStats | null;
+}
+
+export interface GroupDetail extends ParliamentaryGroup {
+  member_count: number;
+  vote_count: number;
+  vote_stats: VoteStats | null;
+  members: GroupMember[];
+}
+
+export interface PartyDetail {
+  party: string;
+  candidate_count: number;
+  vote_count: number;
+  vote_stats: VoteStats | null;
+  candidates: Candidate[];
 }
 
 export interface IngestionRun {
@@ -85,5 +137,14 @@ export const api = {
     fetchJson<Paginated<ParliamentaryVote>>(`/candidates/${slug}/votes?page=${page}`),
   articles: (slug: string, page = 1) =>
     fetchJson<Paginated<Article>>(`/candidates/${slug}/articles?page=${page}`),
+  groups: () => fetchJson<GroupDetail[]>('/groups'),
+  group: (slug: string) => fetchJson<GroupDetail>(`/groups/${slug}`),
+  parties: () => fetchJson<PartyDetail[]>('/parties'),
+  party: (party: string) => fetchJson<PartyDetail>(`/parties/${encodeURIComponent(party)}`),
   ingestionRuns: () => fetchJson<IngestionRun[]>('/ingestion/runs'),
 };
+
+export function formatLoyalty(rate: number | null | undefined): string {
+  if (rate == null) return '—';
+  return `${Math.round(rate * 100)} %`;
+}
