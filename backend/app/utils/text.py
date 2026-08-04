@@ -38,7 +38,4 @@ def candidate_mentioned(text: str, full_name: str) -> bool:
         if _contains_phrase(normalized_text, compound):
             return True
 
-    if len(last_name) >= 4 and _contains_phrase(normalized_text, last_name):
-        return True
-
-    return False
+    return len(last_name) >= 4 and _contains_phrase(normalized_text, last_name)
