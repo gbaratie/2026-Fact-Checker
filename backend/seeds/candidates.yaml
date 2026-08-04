@@ -4,57 +4,157 @@ candidates:
     party: RN
     status: declared
     external_ids: {}
+    programs:
+      - title: "Site officiel de campagne — Pour la France, la Renaissance"
+        url: "https://marinelepen.com"
+        kind: campaign_site
+        year: 2027
+        publisher: "Campagne Marine Le Pen"
+        note: "Site de campagne 2027 ; programme détaillé non publié sous forme de livre unique à ce stade."
+      - title: "Un projet, une méthode — programme RN législatives"
+        url: "https://rassemblementnational.fr/documents/202406-programme.pdf"
+        kind: party_program
+        year: 2024
+        publisher: "Rassemblement national"
+        note: "Programme législatif RN juin 2024, dans la continuité du projet présidentiel 2022."
 
   - slug: jordan-bardella
     full_name: Jordan Bardella
     party: RN
     status: potential
     external_ids: {}
+    programs:
+      - title: "Un projet, une méthode — programme RN législatives"
+        url: "https://rassemblementnational.fr/documents/202406-programme.pdf"
+        kind: party_program
+        year: 2024
+        publisher: "Rassemblement national"
+        note: "Plateforme RN portée avec Marine Le Pen ; pas de programme présidentiel personnel distinct."
 
   - slug: emmanuel-macron
     full_name: Emmanuel Macron
     party: RE
     status: potential
     external_ids: {}
+    programs:
+      - title: "Projet présidentiel 2022 — Avec vous (transcription Vie publique)"
+        url: "https://www.vie-publique.fr/discours/286126-emmanuel-macron-01042022-projet-presidentiel-2022-programme-electoral"
+        kind: presidential_program
+        year: 2022
+        publisher: "vie-publique.fr"
+        note: "Dernier programme présidentiel officiel (2022). Pas de candidature 2027 déclarée ; inéligible après deux mandats."
 
   - slug: francois-ruffin
     full_name: François Ruffin
     party: LFI
     status: potential
     external_ids: {}
+    programs:
+      - title: "L'Avenir en commun — édition 2025"
+        url: "https://programme.lafranceinsoumise.fr"
+        kind: party_program
+        year: 2025
+        publisher: "La France insoumise"
+        note: "Programme LFI partagé ; Ruffin n'a pas publié de livre-programme présidentiel 2027 distinct."
 
   - slug: jean-luc-melenchon
     full_name: Jean-Luc Mélenchon
     party: LFI
     status: potential
     external_ids: {}
+    programs:
+      - title: "L'Avenir en commun — édition 2025"
+        url: "https://programme.lafranceinsoumise.fr"
+        kind: party_program
+        year: 2025
+        publisher: "La France insoumise"
+        note: "Programme actualisé LFI pour la séquence 2027."
+      - title: "L'Avenir en commun — version abrégée 2022 (PDF)"
+        url: "https://melenchon.fr/wp-content/uploads/2022/04/programme-avenir-en-commun-abrege.pdf"
+        kind: presidential_program
+        year: 2022
+        publisher: "Jean-Luc Mélenchon / LFI"
+        note: "Programme présidentiel 2022 (version abrégée PDF)."
 
   - slug: laurent-wauquiez
     full_name: Laurent Wauquiez
     party: LR
     status: potential
     external_ids: {}
+    programs:
+      - title: "Les Républicains — site officiel"
+        url: "https://republicains.fr"
+        kind: campaign_site
+        year: 2026
+        publisher: "Les Républicains"
+        note: "Pas de programme présidentiel 2027 publié ; Wauquiez appelle à bâtir un programme commun de la droite."
 
   - slug: fabien-roussel
     full_name: Fabien Roussel
     party: PCF
     status: potential
     external_ids: {}
+    programs:
+      - title: "La France des jours heureux — programme présidentiel 2022"
+        url: "https://pcf57.fr/wp-content/uploads/2022/02/la_france_des_jours_heureux_livrecomplet.pdf"
+        kind: presidential_program
+        year: 2022
+        publisher: "Parti communiste français"
+        note: "Livre-programme officiel de la campagne 2022."
+      - title: "Parti communiste français — site national"
+        url: "https://www.pcf.fr"
+        kind: party_program
+        year: 2026
+        publisher: "Parti communiste français"
+        note: "Positions actuelles du PCF ; pas de nouveau livre-programme présidentiel 2027 publié."
 
   - slug: yannick-jadot
     full_name: Yannick Jadot
     party: EELV
     status: potential
     external_ids: {}
+    programs:
+      - title: "Projet des écologistes 2022 — Vivant"
+        url: "https://cf.eelv.fr/projet-des-ecologistes-2022/"
+        kind: party_program
+        year: 2022
+        publisher: "Europe Écologie Les Verts"
+        note: "Projet EELV 2022 ayant alimenté la candidature Jadot."
+      - title: "Déclaration de candidature CNCCEP 2022"
+        url: "https://www.cnccep.fr/pdfs/Candidat-04-Yannick-Jadot-Declaration-accessible.pdf"
+        kind: presidential_program
+        year: 2022
+        publisher: "CNCCEP"
+        note: "Profession de foi officielle déposée pour la présidentielle 2022."
 
   - slug: clementine-autain
     full_name: Clémentine Autain
     party: LFI
     status: potential
     external_ids: {}
+    programs:
+      - title: "L'Avenir en commun — édition 2025"
+        url: "https://programme.lafranceinsoumise.fr"
+        kind: party_program
+        year: 2025
+        publisher: "La France insoumise"
+        note: "Programme LFI de référence ; pas de programme présidentiel personnel distinct."
 
   - slug: raphael-glucksmann
     full_name: Raphaël Glucksmann
-    party: PS
+    party: Place publique
     status: potential
     external_ids: {}
+    programs:
+      - title: "Place publique — site officiel"
+        url: "https://www.place-publique.eu"
+        kind: campaign_site
+        year: 2026
+        publisher: "Place publique"
+        note: "Candidature 2027 non officialisée ; vision / propositions présentées en 2025–2026 (livre, meetings)."
+      - title: "Premières lignes de programme — couverture LCP"
+        url: "https://lcp.fr/actualites/presidentielle-raphael-glucksmann-devoile-les-premieres-lignes-de-son-possible-programme"
+        kind: platform_outline
+        year: 2026
+        publisher: "LCP"
+        note: "Synthèse presse des propositions (convention citoyenne, service civique, école). Source secondaire."

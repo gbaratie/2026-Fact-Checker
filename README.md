@@ -15,7 +15,8 @@ Collecte et exploration structurée des données sur les candidats à la présid
 |------|--------|------------|
 | Interviews | YouTube Data API v3 + transcripts | `app/connectors/youtube.py` |
 | Votes | [CLAIR.vote](https://clair.vote/api) + open data AN | `app/connectors/parliament.py` |
-| Articles | Flux RSS presse française | `app/connectors/press_rss.py` |
+| Articles | Flux RSS presse FR (Le Monde, Figaro, Libé, Mediapart, etc.) — provenance `feed_url` stockée | `app/connectors/press_rss.py` |
+| Programmes | Documents curated (sites/PDF officiels) dans `seeds/candidates.yaml` | `app/connectors/programs.py` |
 
 ## Démarrage local
 
@@ -72,6 +73,7 @@ make ingest-votes
 | `GET /candidates/{slug}/interviews` | Interviews paginées |
 | `GET /candidates/{slug}/votes` | Votes parlementaires paginés |
 | `GET /candidates/{slug}/articles` | Articles paginés |
+| `GET /candidates/{slug}/programs` | Documents de programme paginés |
 | `GET /groups` | Groupes parlementaires AN liés |
 | `GET /groups/{slug}` | Détail groupe + membres + stats |
 | `GET /parties` | Agrégation par parti politique |

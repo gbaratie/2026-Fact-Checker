@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.connectors.parliament import ParliamentConnector
 from app.db.session import async_session_factory
-from app.models import Candidate
+from app.models import Candidate, ProgramDocument, Source
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -61,9 +61,62 @@ async def seed_candidates() -> None:
                     external_ids=external_ids,
                 )
                 session.add(candidate)
+                await session.flush()
                 logger.info("Created candidate %s", entry["slug"])
 
+            await _seed_programs(session, candidate, entry.get("programs") or [])
+
         await session.commit()
+
+
+async def _seed_programs(session, candidate: Candidate, programs: list[dict]) -> None:
+    for prog in programs:
+        url = prog["url"]
+        existing = await session.execute(
+            select(ProgramDocument).where(
+                ProgramDocument.candidate_id == candidate.id,
+                ProgramDocument.url == url,
+            )
+        )
+        document = existing.scalar_one_or_none()
+
+        source = Source(
+            source_type="program",
+            url=url,
+            publisher=prog.get("publisher"),
+            raw_metadata={
+                "retrieved_via": "curated_seed",
+                "source_url": url,
+                "kind": prog.get("kind"),
+                "year": prog.get("year"),
+                "note": prog.get("note"),
+            },
+        )
+        session.add(source)
+        await session.flush()
+
+        if document:
+            document.title = prog["title"]
+            document.kind = prog["kind"]
+            document.year = prog.get("year")
+            document.publisher = prog.get("publisher")
+            document.note = prog.get("note")
+            document.source_id = source.id
+            logger.info("Updated program %s for %s", url, candidate.slug)
+        else:
+            session.add(
+                ProgramDocument(
+                    candidate_id=candidate.id,
+                    source_id=source.id,
+                    title=prog["title"],
+                    url=url,
+                    kind=prog["kind"],
+                    year=prog.get("year"),
+                    publisher=prog.get("publisher"),
+                    note=prog.get("note"),
+                )
+            )
+            logger.info("Created program %s for %s", url, candidate.slug)
 
 
 async def main() -> None:

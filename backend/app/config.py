@@ -67,9 +67,29 @@ class Settings(BaseSettings):
     )
 
     rss_feeds: list[str] = [
+        # Politique — titres nationaux
         "https://www.lemonde.fr/politique/rss_full.xml",
         "https://www.franceinfo.fr/politique.rss",
         "https://www.lefigaro.fr/rss/figaro_politique.xml",
+        "https://www.liberation.fr/arc/outboundfeeds/rss/category/politique/",
+        "https://www.lexpress.fr/rss/politique.xml",
+        "https://www.nouvelobs.com/politique/rss.xml",
+        "https://www.leparisien.fr/politique/rss.xml",
+        "https://www.20minutes.fr/feeds/rss-politique.xml",
+        # TV / radio / institutions
+        "https://www.bfmtv.com/rss/politique/",
+        "https://www.france24.com/fr/france/rss",
+        "https://www.publicsenat.fr/rss",
+        # Indépendants / spécialisés
+        "https://www.mediapart.fr/articles/feed",
+        "https://www.politico.eu/feed/",
+        "https://www.huffingtonpost.fr/feeds/index.xml",
+        "https://www.challenges.fr/rss.xml",
+        "https://www.slate.fr/rss.xml",
+        "https://www.humanite.fr/rss",
+        "https://www.la-croix.com/rss",
+        # Régional
+        "https://www.sudouest.fr/politique/rss.xml",
     ]
 
     _database_connect_args: dict[str, Any] = PrivateAttr(default_factory=dict)

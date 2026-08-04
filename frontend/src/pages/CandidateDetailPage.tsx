@@ -6,6 +6,7 @@ import {
   CandidateDetail,
   Interview,
   ParliamentaryVote,
+  ProgramDocument,
 } from '../api/client';
 import {
   ErrorMessage,
@@ -16,13 +17,21 @@ import {
   VoteStatsPanel,
 } from '../components/Layout';
 
-type Tab = 'votes' | 'interviews' | 'articles';
+type Tab = 'votes' | 'interventions' | 'programme' | 'articles';
+
+const KIND_LABELS: Record<string, string> = {
+  presidential_program: 'Programme présidentiel',
+  party_program: 'Programme de parti',
+  campaign_site: 'Site de campagne',
+  platform_outline: 'Ébauche de plateforme',
+};
 
 export function CandidateDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [candidate, setCandidate] = useState<CandidateDetail | null>(null);
   const [tab, setTab] = useState<Tab>('votes');
   const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [programs, setPrograms] = useState<ProgramDocument[]>([]);
   const [votes, setVotes] = useState<ParliamentaryVote[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -37,8 +46,10 @@ export function CandidateDetailPage() {
 
   useEffect(() => {
     if (!slug) return;
-    if (tab === 'interviews') {
+    if (tab === 'interventions') {
       api.interviews(slug).then((r) => setInterviews(r.items));
+    } else if (tab === 'programme') {
+      api.programs(slug).then((r) => setPrograms(r.items));
     } else if (tab === 'votes') {
       api.votes(slug).then((r) => setVotes(r.items));
     } else {
@@ -77,7 +88,11 @@ export function CandidateDetailPage() {
         </div>
         <div className="stat-card">
           <span className="stat-value">{candidate.interview_count}</span>
-          <span className="stat-label">Interviews</span>
+          <span className="stat-label">Interventions</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{candidate.program_count}</span>
+          <span className="stat-label">Programmes</span>
         </div>
         <div className="stat-card">
           <span className="stat-value">{candidate.article_count}</span>
@@ -92,10 +107,16 @@ export function CandidateDetailPage() {
           Votes ({candidate.vote_count})
         </button>
         <button
-          className={tab === 'interviews' ? 'active' : ''}
-          onClick={() => setTab('interviews')}
+          className={tab === 'interventions' ? 'active' : ''}
+          onClick={() => setTab('interventions')}
         >
-          Interviews ({candidate.interview_count})
+          Interventions ({candidate.interview_count})
+        </button>
+        <button
+          className={tab === 'programme' ? 'active' : ''}
+          onClick={() => setTab('programme')}
+        >
+          Programme ({candidate.program_count})
         </button>
         <button className={tab === 'articles' ? 'active' : ''} onClick={() => setTab('articles')}>
           Articles ({candidate.article_count})
@@ -152,7 +173,7 @@ export function CandidateDetailPage() {
         </table>
       )}
 
-      {tab === 'interviews' && (
+      {tab === 'interventions' && (
         <table className="data-table">
           <thead>
             <tr>
@@ -177,11 +198,44 @@ export function CandidateDetailPage() {
             ))}
             {interviews.length === 0 && (
               <tr>
-                <td colSpan={5}>Aucune interview collectée</td>
+                <td colSpan={5}>Aucune intervention collectée</td>
               </tr>
             )}
           </tbody>
         </table>
+      )}
+
+      {tab === 'programme' && (
+        <div className="program-list">
+          {programs.map((p) => {
+            const retrievedVia =
+              (p.source.raw_metadata?.retrieved_via as string | undefined) || 'curated_seed';
+            const sourceUrl =
+              (p.source.raw_metadata?.source_url as string | undefined) || p.url;
+            return (
+              <article key={p.id} className="program-card">
+                <header className="program-card-header">
+                  <h2>{p.title}</h2>
+                  <p className="program-meta">
+                    <span>{KIND_LABELS[p.kind] || p.kind}</span>
+                    {p.year != null && <span>{p.year}</span>}
+                    {p.publisher && <span>{p.publisher}</span>}
+                  </p>
+                </header>
+                {p.note && <p className="program-note">{p.note}</p>}
+                {p.excerpt && <p className="program-excerpt">{p.excerpt.slice(0, 400)}…</p>}
+                <footer className="program-card-footer">
+                  <SourceLink url={p.url} label="Consulter le document" />
+                  <span className="provenance">
+                    Récupéré via {retrievedVia} ·{' '}
+                    <SourceLink url={sourceUrl} label="provenance" />
+                  </span>
+                </footer>
+              </article>
+            );
+          })}
+          {programs.length === 0 && <p className="empty-state">Aucun document de programme</p>}
+        </div>
       )}
 
       {tab === 'articles' && (
@@ -192,24 +246,41 @@ export function CandidateDetailPage() {
               <th>Éditeur</th>
               <th>Date</th>
               <th>Extrait</th>
-              <th>Source</th>
+              <th>Article</th>
+              <th>Récupéré via</th>
             </tr>
           </thead>
           <tbody>
-            {articles.map((a) => (
-              <tr key={a.id}>
-                <td>{a.title}</td>
-                <td>{a.publisher || '—'}</td>
-                <td>{formatDate(a.published_at)}</td>
-                <td>{a.excerpt ? `${a.excerpt.slice(0, 80)}…` : '—'}</td>
-                <td>
-                  <SourceLink url={a.source.url} label="Article" />
-                </td>
-              </tr>
-            ))}
+            {articles.map((a) => {
+              const feedUrl = a.source.raw_metadata?.feed_url as string | undefined;
+              const feedTitle =
+                (a.source.raw_metadata?.feed_title as string | undefined) ||
+                (a.source.raw_metadata?.publisher as string | undefined) ||
+                a.publisher;
+              return (
+                <tr key={a.id}>
+                  <td>{a.title}</td>
+                  <td>{a.publisher || '—'}</td>
+                  <td>{formatDate(a.published_at)}</td>
+                  <td>{a.excerpt ? `${a.excerpt.slice(0, 80)}…` : '—'}</td>
+                  <td>
+                    <SourceLink url={a.url || a.source.url} label="Lire" />
+                  </td>
+                  <td>
+                    {feedUrl ? (
+                      <span className="provenance">
+                        RSS · <SourceLink url={feedUrl} label={feedTitle || 'flux'} />
+                      </span>
+                    ) : (
+                      <span className="provenance">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
             {articles.length === 0 && (
               <tr>
-                <td colSpan={5}>Aucun article collecté</td>
+                <td colSpan={6}>Aucun article collecté</td>
               </tr>
             )}
           </tbody>

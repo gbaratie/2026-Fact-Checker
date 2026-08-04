@@ -12,6 +12,7 @@ from app.models import (
     Interview,
     ParliamentaryGroup,
     ParliamentaryVote,
+    ProgramDocument,
 )
 from app.schemas import (
     ArticleOut,
@@ -26,6 +27,7 @@ from app.schemas import (
     ParliamentaryGroupOut,
     ParliamentaryVoteOut,
     PartyOut,
+    ProgramDocumentOut,
     VoteStatsOut,
 )
 
@@ -65,6 +67,11 @@ async def get_candidate(slug: str, db: AsyncSession = Depends(get_db)) -> Candid
     interview_count = await db.scalar(
         select(func.count()).select_from(Interview).where(Interview.candidate_id == candidate.id)
     )
+    program_count = await db.scalar(
+        select(func.count())
+        .select_from(ProgramDocument)
+        .where(ProgramDocument.candidate_id == candidate.id)
+    )
     vote_count = await db.scalar(
         select(func.count())
         .select_from(ParliamentaryVote)
@@ -90,6 +97,7 @@ async def get_candidate(slug: str, db: AsyncSession = Depends(get_db)) -> Candid
             else None
         ),
         interview_count=interview_count or 0,
+        program_count=program_count or 0,
         vote_count=vote_count or 0,
         article_count=article_count or 0,
         vote_stats=vote_stats,
@@ -179,6 +187,32 @@ async def list_articles(
         .limit(page_size)
     )
     items = [ArticleOut.model_validate(a) for a in result.scalars().all()]
+    return _paginate(total or 0, page, page_size, items)
+
+
+@router.get("/candidates/{slug}/programs", response_model=PaginatedResponse)
+async def list_programs(
+    slug: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedResponse:
+    candidate = await _get_candidate_or_404(db, slug)
+    total = await db.scalar(
+        select(func.count())
+        .select_from(ProgramDocument)
+        .where(ProgramDocument.candidate_id == candidate.id)
+    )
+    offset = (page - 1) * page_size
+    result = await db.execute(
+        select(ProgramDocument)
+        .options(selectinload(ProgramDocument.source))
+        .where(ProgramDocument.candidate_id == candidate.id)
+        .order_by(ProgramDocument.year.desc().nullslast(), ProgramDocument.title)
+        .offset(offset)
+        .limit(page_size)
+    )
+    items = [ProgramDocumentOut.model_validate(p) for p in result.scalars().all()]
     return _paginate(total or 0, page, page_size, items)
 
 

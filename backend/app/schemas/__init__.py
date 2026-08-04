@@ -12,6 +12,7 @@ class SourceOut(BaseModel):
     url: str
     publisher: str | None
     fetched_at: datetime
+    raw_metadata: dict = {}
 
 
 class ParliamentaryGroupOut(BaseModel):
@@ -52,6 +53,7 @@ class VoteStatsOut(BaseModel):
 
 class CandidateDetailOut(CandidateOut):
     interview_count: int = 0
+    program_count: int = 0
     vote_count: int = 0
     article_count: int = 0
     vote_stats: VoteStatsOut | None = None
@@ -99,6 +101,20 @@ class ArticleOut(BaseModel):
     publisher: str | None
     excerpt: str | None
     published_at: datetime | None
+    source: SourceOut
+
+
+class ProgramDocumentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    url: str
+    kind: str
+    year: int | None
+    publisher: str | None
+    excerpt: str | None
+    note: str | None
     source: SourceOut
 
 

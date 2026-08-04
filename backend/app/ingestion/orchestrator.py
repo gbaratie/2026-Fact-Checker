@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.parliament import ParliamentConnector
 from app.connectors.press_rss import PressRSSConnector
+from app.connectors.programs import ProgramsConnector
 from app.connectors.youtube import YouTubeConnector
 from app.models import (
     Article,
@@ -14,6 +15,7 @@ from app.models import (
     Interview,
     ParliamentaryGroup,
     ParliamentaryVote,
+    ProgramDocument,
     Source,
 )
 
@@ -26,13 +28,14 @@ class IngestionOrchestrator:
         self.parliament = ParliamentConnector()
         self.youtube = YouTubeConnector()
         self.press = PressRSSConnector()
+        self.programs = ProgramsConnector()
 
     async def run(self) -> IngestionRun:
         run = IngestionRun(status="running", stats={"created": 0, "updated": 0, "errors": 0})
         self.session.add(run)
         await self.session.flush()
 
-        stats = {"interviews": 0, "votes": 0, "articles": 0, "errors": 0}
+        stats = {"interviews": 0, "votes": 0, "articles": 0, "programs": 0, "errors": 0}
         errors: list[str] = []
 
         result = await self.session.execute(select(Candidate))
@@ -43,6 +46,7 @@ class IngestionOrchestrator:
                 stats["interviews"] += await self._ingest_interviews(candidate, run)
                 stats["votes"] += await self._ingest_votes(candidate, run)
                 stats["articles"] += await self._ingest_articles(candidate, run)
+                stats["programs"] += await self._ingest_programs(candidate, run)
             except Exception as e:
                 msg = f"{candidate.slug}: {e}"
                 logger.exception(msg)
@@ -233,6 +237,55 @@ class IngestionOrchestrator:
                     published_at=record.published_at,
                 )
                 self.session.add(article)
+                count += 1
+
+        await self.session.flush()
+        return count
+
+    async def _ingest_programs(self, candidate: Candidate, run: IngestionRun) -> int:
+        records = await self.programs.fetch_programs_for_candidate(candidate.slug)
+        count = 0
+        for record in records:
+            existing = await self.session.execute(
+                select(ProgramDocument).where(
+                    ProgramDocument.candidate_id == candidate.id,
+                    ProgramDocument.url == record.url,
+                )
+            )
+            document = existing.scalar_one_or_none()
+
+            source = Source(
+                source_type="program",
+                url=record.url,
+                publisher=record.publisher,
+                raw_metadata=record.raw_metadata,
+                ingestion_run_id=run.id,
+            )
+            self.session.add(source)
+            await self.session.flush()
+
+            if document:
+                document.title = record.title
+                document.kind = record.kind
+                document.year = record.year
+                document.publisher = record.publisher
+                document.excerpt = record.excerpt or document.excerpt
+                document.note = record.note
+                document.source_id = source.id
+            else:
+                self.session.add(
+                    ProgramDocument(
+                        candidate_id=candidate.id,
+                        source_id=source.id,
+                        title=record.title,
+                        url=record.url,
+                        kind=record.kind,
+                        year=record.year,
+                        publisher=record.publisher,
+                        excerpt=record.excerpt,
+                        note=record.note,
+                    )
+                )
                 count += 1
 
         await self.session.flush()
