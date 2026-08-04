@@ -68,19 +68,21 @@ make ingest-votes
 | Endpoint | Description |
 |----------|-------------|
 | `GET /health` | Santé de l'API et de la DB |
+| `GET /stats` | Compteurs légers (accueil) |
 | `GET /candidates` | Liste des candidats |
 | `GET /candidates/{slug}` | Détail avec compteurs + stats de vote |
 | `GET /candidates/{slug}/interviews` | Interviews paginées |
-| `GET /candidates/{slug}/votes` | Votes parlementaires paginés |
+| `GET /candidates/{slug}/votes` | Votes parlementaires paginés (`?chamber=assemblee\|senat`) |
 | `GET /candidates/{slug}/articles` | Articles paginés |
 | `GET /candidates/{slug}/programs` | Documents de programme paginés |
-| `GET /groups` | Groupes parlementaires AN liés |
+| `GET /groups` | Groupes parlementaires (AN + Sénat) |
 | `GET /groups/{slug}` | Détail groupe + membres + stats |
 | `GET /parties` | Agrégation par parti politique |
 | `GET /parties/{party}` | Détail parti + candidats |
 | `GET /ingestion/runs` | Historique des collectes |
 | `POST /ingestion/trigger` | Déclenchement manuel (header `X-Ingestion-Secret`) |
 | `POST /candidates` | Créer un candidat (header `X-Ingestion-Secret`) |
+| `PATCH /candidates/{slug}` | Modifier un candidat (header `X-Ingestion-Secret`) |
 | `DELETE /candidates/{slug}` | Supprimer un candidat (header `X-Ingestion-Secret`) |
 | `POST /admin/seed-candidates` | Importer le seed YAML (header `X-Ingestion-Secret`) |
 
