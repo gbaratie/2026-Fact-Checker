@@ -18,7 +18,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <nav>
           <Link to="/candidates">Candidats</Link>
           <Link to="/manage">Gestion</Link>
-          <Link to="/groups">Groupes AN</Link>
+          <Link to="/groups">Groupes</Link>
           <Link to="/parties">Partis</Link>
           <Link to="/ingestion">Ingestion</Link>
         </nav>

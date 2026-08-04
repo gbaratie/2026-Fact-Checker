@@ -56,6 +56,20 @@ class CandidateCreate(BaseModel):
         return stripped or None
 
 
+class CandidateUpdate(BaseModel):
+    party: str | None = Field(default=None, max_length=120)
+    status: CandidateStatus | None = None
+    clair_slug: str | None = Field(default=None, max_length=120)
+
+    @field_validator("party", "clair_slug")
+    @classmethod
+    def strip_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
 class CandidateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,6 +80,12 @@ class CandidateOut(BaseModel):
     external_ids: dict
     status: str
     parliamentary_group: ParliamentaryGroupOut | None = None
+
+
+class StatsOut(BaseModel):
+    candidate_count: int
+    database: str
+    last_ingestion_at: datetime | None = None
 
 
 class SeedCandidatesOut(BaseModel):

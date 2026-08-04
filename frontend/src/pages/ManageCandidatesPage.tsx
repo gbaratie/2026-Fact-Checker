@@ -1,9 +1,22 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, Candidate } from '../api/client';
+import {
+  api,
+  Candidate,
+  CandidateStatus,
+  clairDeputeUrl,
+  KNOWN_PARTIES,
+} from '../api/client';
 import { ErrorMessage, GroupBadge, Loading } from '../components/Layout';
 
 const SECRET_KEY = 'factchecker_ingestion_secret';
+const CUSTOM_PARTY = '__custom__';
+
+const STATUS_OPTIONS: { value: CandidateStatus; label: string }[] = [
+  { value: 'potential', label: 'Potentiel' },
+  { value: 'declared', label: 'Déclaré' },
+  { value: 'withdrawn', label: 'Retiré' },
+];
 
 export function ManageCandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -14,10 +27,24 @@ export function ManageCandidatesPage() {
 
   const [secret, setSecret] = useState(() => sessionStorage.getItem(SECRET_KEY) || '');
   const [fullName, setFullName] = useState('');
-  const [party, setParty] = useState('');
-  const [status, setStatus] = useState<'declared' | 'potential' | 'withdrawn'>('potential');
+  const [partyChoice, setPartyChoice] = useState('');
+  const [customParty, setCustomParty] = useState('');
+  const [status, setStatus] = useState<CandidateStatus>('potential');
   const [slug, setSlug] = useState('');
   const [clairSlug, setClairSlug] = useState('');
+
+  const [editingSlug, setEditingSlug] = useState<string | null>(null);
+  const [editPartyChoice, setEditPartyChoice] = useState('');
+  const [editCustomParty, setEditCustomParty] = useState('');
+  const [editStatus, setEditStatus] = useState<CandidateStatus>('potential');
+  const [editClairSlug, setEditClairSlug] = useState('');
+
+  const knownParties = useMemo(() => {
+    const fromDb = candidates.map((c) => c.party).filter((p): p is string => Boolean(p));
+    return Array.from(new Set([...KNOWN_PARTIES, ...fromDb])).sort((a, b) =>
+      a.localeCompare(b, 'fr'),
+    );
+  }, [candidates]);
 
   async function refresh() {
     setLoading(true);
@@ -41,6 +68,11 @@ export function ManageCandidatesPage() {
     else sessionStorage.removeItem(SECRET_KEY);
   }
 
+  function resolveParty(choice: string, custom: string): string | null {
+    if (choice === CUSTOM_PARTY) return custom.trim() || null;
+    return choice.trim() || null;
+  }
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!secret.trim()) {
@@ -58,17 +90,61 @@ export function ManageCandidatesPage() {
     try {
       const created = await api.createCandidate(secret.trim(), {
         full_name: fullName.trim(),
-        party: party.trim() || null,
+        party: resolveParty(partyChoice, customParty),
         status,
         slug: slug.trim() || null,
         clair_slug: clairSlug.trim() || null,
       });
       setMessage(`Candidat « ${created.full_name} » ajouté (${created.slug}).`);
       setFullName('');
-      setParty('');
+      setPartyChoice('');
+      setCustomParty('');
       setSlug('');
       setClairSlug('');
       setStatus('potential');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startEdit(candidate: Candidate) {
+    setEditingSlug(candidate.slug);
+    const party = candidate.party || '';
+    if (party && knownParties.includes(party)) {
+      setEditPartyChoice(party);
+      setEditCustomParty('');
+    } else if (party) {
+      setEditPartyChoice(CUSTOM_PARTY);
+      setEditCustomParty(party);
+    } else {
+      setEditPartyChoice('');
+      setEditCustomParty('');
+    }
+    setEditStatus((candidate.status as CandidateStatus) || 'potential');
+    setEditClairSlug(candidate.external_ids?.clair_slug || '');
+    setMessage(null);
+    setError(null);
+  }
+
+  async function handleSaveEdit(candidate: Candidate) {
+    if (!secret.trim()) {
+      setError('Renseigne le secret d’ingestion avant de modifier.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = await api.updateCandidate(secret.trim(), candidate.slug, {
+        party: resolveParty(editPartyChoice, editCustomParty),
+        status: editStatus,
+        clair_slug: editClairSlug.trim() || null,
+      });
+      setMessage(`Candidat « ${updated.full_name} » mis à jour.`);
+      setEditingSlug(null);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -101,33 +177,11 @@ export function ManageCandidatesPage() {
     }
   }
 
-  async function handleSeed() {
-    if (!secret.trim()) {
-      setError('Renseigne le secret d’ingestion avant d’importer le seed.');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await api.seedCandidates(secret.trim());
-      setMessage(
-        `Seed importé : ${result.created} créé(s), ${result.updated} mis à jour, ${result.total} au total.`,
-      );
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div>
       <h1>Gestion des candidats</h1>
       <p className="subtitle">
-        Ajoute ou supprime des candidats en base de production. Protégé par le secret
-        d’ingestion Render.
+        Ajoute, modifie ou supprime des candidats. Protégé par le secret d’ingestion Render.
       </p>
 
       <section className="admin-panel">
@@ -149,19 +203,6 @@ export function ManageCandidatesPage() {
       </section>
 
       <section className="admin-panel">
-        <div className="admin-panel-header">
-          <h2>Importer le seed YAML</h2>
-          <button type="button" className="btn" onClick={handleSeed} disabled={busy}>
-            Importer les 10 candidats du seed
-          </button>
-        </div>
-        <p className="muted">
-          Utile pour peupler une base vide à partir de{' '}
-          <code>backend/seeds/candidates.yaml</code>. Idempotent.
-        </p>
-      </section>
-
-      <section className="admin-panel">
         <h2>Ajouter un candidat</h2>
         <form className="admin-form" onSubmit={handleCreate}>
           <label className="form-field">
@@ -173,20 +214,22 @@ export function ManageCandidatesPage() {
               required
             />
           </label>
-          <label className="form-field">
-            <span>Parti</span>
-            <input
-              value={party}
-              onChange={(e) => setParty(e.target.value)}
-              placeholder="RE"
-            />
-          </label>
+          <PartySelect
+            label="Parti"
+            choice={partyChoice}
+            custom={customParty}
+            parties={knownParties}
+            onChoice={setPartyChoice}
+            onCustom={setCustomParty}
+          />
           <label className="form-field">
             <span>Statut</span>
-            <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
-              <option value="potential">potential</option>
-              <option value="declared">declared</option>
-              <option value="withdrawn">withdrawn</option>
+            <select value={status} onChange={(e) => setStatus(e.target.value as CandidateStatus)}>
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </label>
           <label className="form-field">
@@ -198,11 +241,14 @@ export function ManageCandidatesPage() {
             />
           </label>
           <label className="form-field">
-            <span>Slug CLAIR.vote (optionnel)</span>
+            <span className="label-with-info">
+              Slug CLAIR.vote
+              <InfoTip text="Identifiant du député sur clair.vote (ex. francois-ruffin). Sert à récupérer automatiquement les votes à l’Assemblée. Laisser vide pour tenter un matching par nom." />
+            </span>
             <input
               value={clairSlug}
               onChange={(e) => setClairSlug(e.target.value)}
-              placeholder="gabriel-attal"
+              placeholder="francois-ruffin"
             />
           </label>
           <button type="submit" className="btn" disabled={busy}>
@@ -219,7 +265,7 @@ export function ManageCandidatesPage() {
         {loading ? (
           <Loading />
         ) : candidates.length === 0 ? (
-          <p className="empty-state">Aucun candidat. Importe le seed ou ajoute-en un.</p>
+          <p className="empty-state">Aucun candidat. Ajoute-en un ci-dessus.</p>
         ) : (
           <table className="data-table">
             <thead>
@@ -228,48 +274,181 @@ export function ManageCandidatesPage() {
                 <th>Parti</th>
                 <th>Groupe AN</th>
                 <th>Statut</th>
-                <th>CLAIR</th>
+                <th>
+                  <span className="label-with-info">
+                    CLAIR
+                    <InfoTip text="Lien vers la fiche député sur clair.vote, source des votes Assemblée (et Sénat si disponible)." />
+                  </span>
+                </th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {candidates.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <Link to={`/candidates/${c.slug}`}>{c.full_name}</Link>
-                  </td>
-                  <td>{c.party || '—'}</td>
-                  <td>
-                    {c.parliamentary_group ? (
-                      <GroupBadge
-                        name={c.parliamentary_group.name}
-                        color={c.parliamentary_group.color}
-                        to={`/groups/${c.parliamentary_group.slug}`}
-                      />
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <span className={`badge badge-${c.status}`}>{c.status}</span>
-                  </td>
-                  <td className="muted">{c.external_ids?.clair_slug || '—'}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn-danger"
-                      disabled={busy}
-                      onClick={() => void handleDelete(c)}
-                    >
-                      Supprimer
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {candidates.map((c) => {
+                const isEditing = editingSlug === c.slug;
+                const clairUrl = clairDeputeUrl(c.external_ids?.clair_slug);
+                if (isEditing) {
+                  return (
+                    <tr key={c.id} className="row-editing">
+                      <td>
+                        <Link to={`/candidates/${c.slug}`}>{c.full_name}</Link>
+                      </td>
+                      <td colSpan={2}>
+                        <div className="inline-edit-grid">
+                          <PartySelect
+                            label=""
+                            choice={editPartyChoice}
+                            custom={editCustomParty}
+                            parties={knownParties}
+                            onChoice={setEditPartyChoice}
+                            onCustom={setEditCustomParty}
+                            compact
+                          />
+                        </div>
+                      </td>
+                      <td>
+                        <select
+                          value={editStatus}
+                          onChange={(e) => setEditStatus(e.target.value as CandidateStatus)}
+                        >
+                          {STATUS_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          value={editClairSlug}
+                          onChange={(e) => setEditClairSlug(e.target.value)}
+                          placeholder="slug-clair"
+                          className="inline-input"
+                        />
+                      </td>
+                      <td className="row-actions">
+                        <button
+                          type="button"
+                          className="btn"
+                          disabled={busy}
+                          onClick={() => void handleSaveEdit(c)}
+                        >
+                          Enregistrer
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-small"
+                          disabled={busy}
+                          onClick={() => setEditingSlug(null)}
+                        >
+                          Annuler
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr key={c.id}>
+                    <td>
+                      <Link to={`/candidates/${c.slug}`}>{c.full_name}</Link>
+                    </td>
+                    <td>{c.party || '—'}</td>
+                    <td>
+                      {c.parliamentary_group ? (
+                        <GroupBadge
+                          name={c.parliamentary_group.name}
+                          color={c.parliamentary_group.color}
+                          to={`/groups/${c.parliamentary_group.slug}`}
+                        />
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      <span className={`badge badge-${c.status}`}>{c.status}</span>
+                    </td>
+                    <td>
+                      {clairUrl ? (
+                        <a href={clairUrl} target="_blank" rel="noopener noreferrer" className="source-link">
+                          {c.external_ids.clair_slug}
+                        </a>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td className="row-actions">
+                      <button
+                        type="button"
+                        className="btn-secondary btn-small"
+                        disabled={busy}
+                        onClick={() => startEdit(c)}
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-danger"
+                        disabled={busy}
+                        onClick={() => void handleDelete(c)}
+                      >
+                        Supprimer
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </section>
     </div>
+  );
+}
+
+function PartySelect({
+  label,
+  choice,
+  custom,
+  parties,
+  onChoice,
+  onCustom,
+  compact,
+}: {
+  label: string;
+  choice: string;
+  custom: string;
+  parties: string[];
+  onChoice: (v: string) => void;
+  onCustom: (v: string) => void;
+  compact?: boolean;
+}) {
+  return (
+    <label className={`form-field ${compact ? 'form-field-compact' : ''}`}>
+      {label ? <span>{label}</span> : null}
+      <select value={choice} onChange={(e) => onChoice(e.target.value)}>
+        <option value="">— Aucun —</option>
+        {parties.map((p) => (
+          <option key={p} value={p}>
+            {p}
+          </option>
+        ))}
+        <option value={CUSTOM_PARTY}>Autre…</option>
+      </select>
+      {choice === CUSTOM_PARTY && (
+        <input
+          value={custom}
+          onChange={(e) => onCustom(e.target.value)}
+          placeholder="Nom du parti"
+        />
+      )}
+    </label>
+  );
+}
+
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="info-tip" title={text} tabIndex={0} aria-label={text}>
+      i
+    </span>
   );
 }

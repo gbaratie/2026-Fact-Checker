@@ -31,17 +31,19 @@ async def main() -> None:
             try:
                 added = await orchestrator._ingest_votes(candidate, run)
                 stats["votes"] += added
-                if added or (candidate.external_ids or {}).get("clair_slug"):
+                ids = candidate.external_ids or {}
+                if added or ids.get("clair_slug") or ids.get("clair_senateur_slug"):
                     stats["matched"] += 1
                     logger.info(
-                        "%s: +%d votes (clair_slug=%s)",
+                        "%s: +%d votes (an=%s, senat=%s)",
                         candidate.slug,
                         added,
-                        (candidate.external_ids or {}).get("clair_slug"),
+                        ids.get("clair_slug"),
+                        ids.get("clair_senateur_slug"),
                     )
                 else:
                     stats["skipped"] += 1
-                    logger.info("%s: no Assemblee match, skipped", candidate.slug)
+                    logger.info("%s: no AN/Senate match, skipped", candidate.slug)
                 # Laisse respirer l'API CLAIR entre candidats.
                 await asyncio.sleep(1.0)
             except Exception as e:

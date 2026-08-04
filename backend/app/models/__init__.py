@@ -92,7 +92,12 @@ class Interview(Base):
 class ParliamentaryVote(Base):
     __tablename__ = "parliamentary_votes"
     __table_args__ = (
-        UniqueConstraint("candidate_id", "scrutin_id", name="uq_votes_candidate_scrutin"),
+        UniqueConstraint(
+            "candidate_id",
+            "chamber",
+            "scrutin_id",
+            name="uq_votes_candidate_chamber_scrutin",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
