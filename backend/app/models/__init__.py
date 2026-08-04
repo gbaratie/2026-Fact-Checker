@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -50,6 +50,7 @@ class Candidate(Base):
     )
     articles: Mapped[list["Article"]] = relationship(back_populates="candidate")
     program_documents: Mapped[list["ProgramDocument"]] = relationship(back_populates="candidate")
+    claims: Mapped[list["Claim"]] = relationship(back_populates="candidate")
 
 
 class Source(Base):
@@ -120,6 +121,9 @@ class ParliamentaryVote(Base):
     candidate: Mapped["Candidate"] = relationship(back_populates="parliamentary_votes")
     parliamentary_group: Mapped["ParliamentaryGroup | None"] = relationship(back_populates="votes")
     source: Mapped["Source"] = relationship()
+    vote_topics: Mapped[list["VoteTopic"]] = relationship(
+        back_populates="vote", cascade="all, delete-orphan"
+    )
 
 
 class Article(Base):
@@ -179,3 +183,76 @@ class IngestionRun(Base):
     errors: Mapped[list] = mapped_column(JSON, default=list)
 
     sources: Mapped[list["Source"]] = relationship(back_populates="ingestion_run")
+
+
+class Topic(Base):
+    __tablename__ = "topics"
+    __table_args__ = (UniqueConstraint("slug", name="uq_topics_slug"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    slug: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    claims: Mapped[list["Claim"]] = relationship(back_populates="topic")
+    vote_topics: Mapped[list["VoteTopic"]] = relationship(back_populates="topic")
+
+
+class Claim(Base):
+    __tablename__ = "claims"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("candidates.id"), nullable=False, index=True
+    )
+    topic_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("topics.id"), nullable=False, index=True
+    )
+    stance: Mapped[str] = mapped_column(String(20), nullable=False)
+    summary: Mapped[str] = mapped_column(String(500), nullable=False)
+    quote: Mapped[str | None] = mapped_column(Text)
+    evidence_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    interview_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("interviews.id"), nullable=True
+    )
+    program_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("program_documents.id"), nullable=True
+    )
+    article_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("articles.id"), nullable=True
+    )
+    source_url: Mapped[str | None] = mapped_column(Text)
+    method: Mapped[str] = mapped_column(String(50), nullable=False, default="manual")
+    confidence: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    candidate: Mapped["Candidate"] = relationship(back_populates="claims")
+    topic: Mapped["Topic"] = relationship(back_populates="claims")
+    interview: Mapped["Interview | None"] = relationship()
+    program_document: Mapped["ProgramDocument | None"] = relationship()
+    article: Mapped["Article | None"] = relationship()
+
+
+class VoteTopic(Base):
+    __tablename__ = "vote_topics"
+    __table_args__ = (UniqueConstraint("vote_id", "topic_id", name="uq_vote_topics_vote_topic"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    vote_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("parliamentary_votes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    topic_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("topics.id"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    vote: Mapped["ParliamentaryVote"] = relationship(back_populates="vote_topics")
+    topic: Mapped["Topic"] = relationship(back_populates="vote_topics")

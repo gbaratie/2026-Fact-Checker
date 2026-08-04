@@ -10,7 +10,7 @@ migrate:
 	cd backend && alembic upgrade head
 
 seed:
-	cd backend && python -m app.seeds.seed_candidates
+	cd backend && python -m app.seeds.seed_topics && python -m app.seeds.seed_candidates
 
 ingest:
 	cd backend && python -m app.ingestion.run

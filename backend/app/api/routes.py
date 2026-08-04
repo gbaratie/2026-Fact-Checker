@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,18 +10,24 @@ from app.db.session import get_db
 from app.models import (
     Article,
     Candidate,
+    Claim,
     IngestionRun,
     Interview,
     ParliamentaryGroup,
     ParliamentaryVote,
     ProgramDocument,
+    VoteTopic,
 )
 from app.schemas import (
     ArticleOut,
+    CandidateCoherenceOut,
     CandidateCreate,
     CandidateDetailOut,
     CandidateOut,
     CandidateUpdate,
+    ClaimCreate,
+    ClaimOut,
+    ClaimUpdate,
     GroupMemberOut,
     HealthOut,
     IngestionRunOut,
@@ -31,10 +39,16 @@ from app.schemas import (
     PartyOut,
     ProgramDocumentOut,
     SeedCandidatesOut,
+    SeedTopicsOut,
     StatsOut,
+    TopicCoherenceOut,
+    TopicOut,
     VoteStatsOut,
+    VoteTopicSet,
 )
+from app.seeds.seed_topics import seed_topics
 from app.services import candidates as candidate_service
+from app.services import claims as claims_service
 
 router = APIRouter()
 
@@ -144,6 +158,22 @@ async def seed_candidates_endpoint() -> SeedCandidatesOut:
     return SeedCandidatesOut(**stats)
 
 
+@router.post(
+    "/admin/seed-topics",
+    response_model=SeedTopicsOut,
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def seed_topics_endpoint() -> SeedTopicsOut:
+    stats = await seed_topics()
+    return SeedTopicsOut(**stats)
+
+
+@router.get("/topics", response_model=list[TopicOut])
+async def list_topics(db: AsyncSession = Depends(get_db)) -> list[TopicOut]:
+    topics = await claims_service.list_topics(db)
+    return [TopicOut.model_validate(t) for t in topics]
+
+
 @router.get("/candidates/{slug}", response_model=CandidateDetailOut)
 async def get_candidate(slug: str, db: AsyncSession = Depends(get_db)) -> CandidateDetailOut:
     result = await db.execute(
@@ -178,6 +208,11 @@ async def get_candidate(slug: str, db: AsyncSession = Depends(get_db)) -> Candid
                 .where(Article.candidate_id == candidate.id)
                 .scalar_subquery()
                 .label("articles"),
+                select(func.count())
+                .select_from(Claim)
+                .where(Claim.candidate_id == candidate.id)
+                .scalar_subquery()
+                .label("claims"),
             )
         )
     ).one()
@@ -201,6 +236,7 @@ async def get_candidate(slug: str, db: AsyncSession = Depends(get_db)) -> Candid
         program_count=int(counts.programs or 0),
         vote_count=int(counts.votes or 0),
         article_count=int(counts.articles or 0),
+        claim_count=int(counts.claims or 0),
         vote_stats=vote_stats,
     )
 
@@ -259,14 +295,117 @@ async def list_votes(
         .options(
             selectinload(ParliamentaryVote.source),
             selectinload(ParliamentaryVote.parliamentary_group),
+            selectinload(ParliamentaryVote.vote_topics).selectinload(VoteTopic.topic),
         )
         .where(*filters)
         .order_by(ParliamentaryVote.vote_date.desc().nullslast())
         .offset(offset)
         .limit(page_size)
     )
-    items = [ParliamentaryVoteOut.model_validate(v) for v in result.scalars().all()]
+    items = [_vote_out(v) for v in result.scalars().all()]
     return _paginate(total or 0, page, page_size, items)
+
+
+@router.get("/candidates/{slug}/claims", response_model=list[ClaimOut])
+async def list_claims(slug: str, db: AsyncSession = Depends(get_db)) -> list[ClaimOut]:
+    candidate = await _get_candidate_or_404(db, slug)
+    claims = await claims_service.list_claims_for_candidate(db, candidate.id)
+    return [ClaimOut.model_validate(c) for c in claims]
+
+
+@router.post(
+    "/candidates/{slug}/claims",
+    response_model=ClaimOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def create_claim(
+    slug: str,
+    payload: ClaimCreate,
+    db: AsyncSession = Depends(get_db),
+) -> ClaimOut:
+    candidate = await _get_candidate_or_404(db, slug)
+    try:
+        claim = await claims_service.create_claim(db, candidate, payload)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return ClaimOut.model_validate(claim)
+
+
+@router.patch(
+    "/claims/{claim_id}",
+    response_model=ClaimOut,
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def update_claim(
+    claim_id: UUID,
+    payload: ClaimUpdate,
+    db: AsyncSession = Depends(get_db),
+) -> ClaimOut:
+    try:
+        claim = await claims_service.update_claim(db, claim_id, payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return ClaimOut.model_validate(claim)
+
+
+@router.delete(
+    "/claims/{claim_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def delete_claim(claim_id: UUID, db: AsyncSession = Depends(get_db)) -> None:
+    try:
+        await claims_service.delete_claim(db, claim_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/candidates/{slug}/coherence", response_model=CandidateCoherenceOut)
+async def candidate_coherence(
+    slug: str, db: AsyncSession = Depends(get_db)
+) -> CandidateCoherenceOut:
+    candidate = await _get_candidate_or_404(db, slug)
+    rows = await claims_service.coherence_for_candidate(db, candidate.id)
+    return CandidateCoherenceOut(
+        candidate_slug=candidate.slug,
+        topics=[
+            TopicCoherenceOut(
+                topic=TopicOut.model_validate(row["topic"]),
+                status=row["status"],
+                claim_stances=row["claim_stances"],
+                vote_positions=row["vote_positions"],
+                claims_count=row["claims_count"],
+                votes_count=row["votes_count"],
+            )
+            for row in rows
+        ],
+    )
+
+
+@router.put(
+    "/votes/{vote_id}/topics",
+    response_model=list[TopicOut],
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def set_vote_topics(
+    vote_id: UUID,
+    payload: VoteTopicSet,
+    db: AsyncSession = Depends(get_db),
+) -> list[TopicOut]:
+    result = await db.execute(select(ParliamentaryVote).where(ParliamentaryVote.id == vote_id))
+    vote = result.scalar_one_or_none()
+    if not vote:
+        raise HTTPException(status_code=404, detail="Vote introuvable")
+    try:
+        topics = await claims_service.set_vote_topics(db, vote, payload)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return [TopicOut.model_validate(t) for t in topics]
 
 
 @router.get("/candidates/{slug}/articles", response_model=PaginatedResponse)
@@ -527,6 +666,27 @@ async def _get_candidate_or_404(db: AsyncSession, slug: str) -> Candidate:
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidat introuvable")
     return candidate
+
+
+def _vote_out(vote: ParliamentaryVote) -> ParliamentaryVoteOut:
+    topics = [
+        TopicOut.model_validate(vt.topic)
+        for vt in (vote.vote_topics or [])
+        if vt.topic is not None
+    ]
+    topics.sort(key=lambda t: (t.sort_order, t.label))
+    return ParliamentaryVoteOut(
+        id=vote.id,
+        chamber=vote.chamber,
+        scrutin_id=vote.scrutin_id,
+        title=vote.title,
+        position=vote.position,
+        group_position=vote.group_position,
+        vote_date=vote.vote_date,
+        source=vote.source,
+        parliamentary_group=vote.parliamentary_group,
+        topics=topics,
+    )
 
 
 async def _vote_stats_for_filter(db: AsyncSession, *filters) -> VoteStatsOut:
