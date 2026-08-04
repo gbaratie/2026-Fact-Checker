@@ -1,4 +1,4 @@
-"""Création / suppression de candidats et import du seed YAML."""
+"""Création / suppression / mise à jour de candidats et import du seed YAML."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from app.models import (
     ProgramDocument,
     Source,
 )
-from app.schemas import CandidateCreate
+from app.schemas import CandidateCreate, CandidateUpdate
 from app.seeds.seed_candidates import seed_candidates
 from app.utils.text import slugify
 
@@ -51,6 +51,51 @@ async def create_candidate(session: AsyncSession, payload: CandidateCreate) -> C
         external_ids=external_ids,
     )
     session.add(candidate)
+    await session.commit()
+
+    result = await session.execute(
+        select(Candidate)
+        .options(selectinload(Candidate.parliamentary_group))
+        .where(Candidate.id == candidate.id)
+    )
+    return result.scalar_one()
+
+
+async def update_candidate(
+    session: AsyncSession, slug: str, payload: CandidateUpdate
+) -> Candidate:
+    result = await session.execute(select(Candidate).where(Candidate.slug == slug))
+    candidate = result.scalar_one_or_none()
+    if not candidate:
+        raise LookupError("Candidat introuvable")
+
+    data = payload.model_dump(exclude_unset=True)
+
+    if "party" in data:
+        candidate.party = data["party"]
+    if "status" in data and data["status"] is not None:
+        candidate.status = data["status"]
+
+    if "clair_slug" in data:
+        external_ids = dict(candidate.external_ids or {})
+        clair_slug = data["clair_slug"]
+        if clair_slug is None:
+            external_ids.pop("clair_slug", None)
+            external_ids.pop("clair_id", None)
+            external_ids.pop("depute_id", None)
+            candidate.parliamentary_group_id = None
+        else:
+            parliament = ParliamentConnector()
+            depute = await parliament.resolve_depute(
+                candidate.full_name, preferred_slug=clair_slug
+            )
+            external_ids["clair_slug"] = clair_slug
+            if depute:
+                external_ids["clair_slug"] = depute.slug
+                external_ids["clair_id"] = depute.id
+                external_ids["depute_id"] = depute.id
+        candidate.external_ids = external_ids
+
     await session.commit()
 
     result = await session.execute(

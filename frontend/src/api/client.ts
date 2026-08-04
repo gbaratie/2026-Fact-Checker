@@ -128,6 +128,12 @@ export interface IngestionRun {
   errors: string[];
 }
 
+export interface AppStats {
+  candidate_count: number;
+  database: string;
+  last_ingestion_at: string | null;
+}
+
 export interface Paginated<T> {
   items: T[];
   total: number;
@@ -164,22 +170,63 @@ function withSecret(secret: string, init: RequestInit = {}): RequestInit {
   return { ...init, headers };
 }
 
+export type CandidateStatus = 'declared' | 'potential' | 'withdrawn';
+
 export interface CandidateCreateInput {
   full_name: string;
   party?: string | null;
-  status?: 'declared' | 'potential' | 'withdrawn';
+  status?: CandidateStatus;
   slug?: string | null;
   clair_slug?: string | null;
 }
 
-export interface SeedCandidatesResult {
-  created: number;
-  updated: number;
-  total: number;
+export interface CandidateUpdateInput {
+  party?: string | null;
+  status?: CandidateStatus;
+  clair_slug?: string | null;
+}
+
+/** Partis connus (seed + usage courant) — le champ reste libre via « Autre… ». */
+export const KNOWN_PARTIES = [
+  'RE',
+  'RN',
+  'LFI',
+  'LR',
+  'PS',
+  'EELV',
+  'PCF',
+  'Place publique',
+  'MoDem',
+  'Horizons',
+] as const;
+
+export const CHAMBER_LABELS: Record<string, string> = {
+  assemblee: 'Assemblée nationale',
+  senat: 'Sénat',
+  parlement_europeen: 'Parlement européen',
+};
+
+export function clairScrutinUrl(vote: Pick<ParliamentaryVote, 'scrutin_id' | 'source' | 'chamber'>) {
+  const raw = vote.source?.url || '';
+  // Corrige les anciennes URLs stockées avec l'UUID CLAIR au lieu du numéro public.
+  if (/clair\.vote\/scrutins\/[0-9a-f-]{20,}/i.test(raw) && vote.scrutin_id) {
+    return `https://clair.vote/scrutins/${vote.scrutin_id}`;
+  }
+  if (raw.includes('clair.vote')) return raw;
+  if (vote.scrutin_id && (vote.chamber === 'assemblee' || vote.chamber === 'senat')) {
+    return `https://clair.vote/scrutins/${vote.scrutin_id}`;
+  }
+  return raw;
+}
+
+export function clairDeputeUrl(clairSlug: string | undefined | null) {
+  if (!clairSlug) return null;
+  return `https://clair.vote/deputes/${clairSlug}`;
 }
 
 export const api = {
   health: () => fetchJson<{ status: string; database: string }>('/health'),
+  stats: () => fetchJson<AppStats>('/stats'),
   candidates: () => fetchJson<Candidate[]>('/candidates'),
   candidate: (slug: string) => fetchJson<CandidateDetail>(`/candidates/${slug}`),
   createCandidate: (secret: string, payload: CandidateCreateInput) =>
@@ -187,19 +234,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     })),
+  updateCandidate: (secret: string, slug: string, payload: CandidateUpdateInput) =>
+    fetchJson<Candidate>(`/candidates/${slug}`, withSecret(secret, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })),
   deleteCandidate: (secret: string, slug: string) =>
     fetchJson<void>(`/candidates/${slug}`, withSecret(secret, { method: 'DELETE' })),
-  seedCandidates: (secret: string) =>
-    fetchJson<SeedCandidatesResult>(
-      '/admin/seed-candidates',
-      withSecret(secret, { method: 'POST' }),
-    ),
   interviews: (slug: string, page = 1) =>
     fetchJson<Paginated<Interview>>(`/candidates/${slug}/interviews?page=${page}`),
   programs: (slug: string, page = 1) =>
     fetchJson<Paginated<ProgramDocument>>(`/candidates/${slug}/programs?page=${page}`),
-  votes: (slug: string, page = 1) =>
-    fetchJson<Paginated<ParliamentaryVote>>(`/candidates/${slug}/votes?page=${page}`),
+  votes: (slug: string, page = 1, chamber?: string) => {
+    const params = new URLSearchParams({ page: String(page), page_size: '100' });
+    if (chamber) params.set('chamber', chamber);
+    return fetchJson<Paginated<ParliamentaryVote>>(
+      `/candidates/${slug}/votes?${params.toString()}`,
+    );
+  },
   articles: (slug: string, page = 1) =>
     fetchJson<Paginated<Article>>(`/candidates/${slug}/articles?page=${page}`),
   groups: () => fetchJson<GroupDetail[]>('/groups'),

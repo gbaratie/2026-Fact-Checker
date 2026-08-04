@@ -11,6 +11,7 @@ import {
 export function GroupsPage() {
   const [groups, setGroups] = useState<GroupDetail[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [chamberFilter, setChamberFilter] = useState<'all' | 'assemblee' | 'senat'>('all');
 
   useEffect(() => {
     api
@@ -22,17 +23,46 @@ export function GroupsPage() {
   if (error) return <ErrorMessage message={error} />;
   if (!groups) return <Loading />;
 
+  const filtered =
+    chamberFilter === 'all' ? groups : groups.filter((g) => g.chamber === chamberFilter);
+
   return (
     <div>
       <h1>Groupes parlementaires</h1>
       <p className="subtitle">
-        Agrégation des votes des candidats suivis, par groupe à l&apos;Assemblée.
+        Agrégation des votes des candidats suivis, par groupe (Assemblée et Sénat).
       </p>
+      <div className="chamber-tabs">
+        <button
+          type="button"
+          className={chamberFilter === 'all' ? 'active' : ''}
+          onClick={() => setChamberFilter('all')}
+        >
+          Tous
+        </button>
+        <button
+          type="button"
+          className={chamberFilter === 'assemblee' ? 'active' : ''}
+          onClick={() => setChamberFilter('assemblee')}
+        >
+          Assemblée
+        </button>
+        <button
+          type="button"
+          className={chamberFilter === 'senat' ? 'active' : ''}
+          onClick={() => setChamberFilter('senat')}
+        >
+          Sénat
+        </button>
+      </div>
       <div className="card-grid">
-        {groups.map((g) => (
+        {filtered.map((g) => (
           <Link key={g.id} to={`/groups/${g.slug}`} className="entity-card">
             <div className="entity-card-head">
               <GroupBadge name={g.name} color={g.color} />
+              <span className="chamber-pill">
+                {g.chamber === 'senat' ? 'Sénat' : 'Assemblée'}
+              </span>
               {g.spectrum && <span className="muted">{g.spectrum}</span>}
             </div>
             <h2>{g.full_name}</h2>
@@ -45,7 +75,7 @@ export function GroupsPage() {
           </Link>
         ))}
       </div>
-      {groups.length === 0 && <p>Aucun groupe lié pour l&apos;instant.</p>}
+      {filtered.length === 0 && <p>Aucun groupe lié pour l&apos;instant.</p>}
     </div>
   );
 }
@@ -77,7 +107,12 @@ export function GroupDetailPage() {
       </div>
       <h1>{group.full_name}</h1>
       <p className="subtitle">
-        Chambre : {group.chamber}
+        Chambre :{' '}
+        {group.chamber === 'senat'
+          ? 'Sénat'
+          : group.chamber === 'assemblee'
+            ? 'Assemblée nationale'
+            : group.chamber}
         {group.legislature ? ` · législature ${group.legislature}` : ''}
       </p>
 

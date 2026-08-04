@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   api,
   Article,
   CandidateDetail,
+  CHAMBER_LABELS,
+  clairScrutinUrl,
   Interview,
   ParliamentaryVote,
   ProgramDocument,
@@ -18,6 +20,7 @@ import {
 } from '../components/Layout';
 
 type Tab = 'votes' | 'interventions' | 'programme' | 'articles';
+type ChamberFilter = 'all' | 'assemblee' | 'senat' | 'parlement_europeen';
 
 const KIND_LABELS: Record<string, string> = {
   presidential_program: 'Programme présidentiel',
@@ -30,32 +33,95 @@ export function CandidateDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [candidate, setCandidate] = useState<CandidateDetail | null>(null);
   const [tab, setTab] = useState<Tab>('votes');
-  const [interviews, setInterviews] = useState<Interview[]>([]);
-  const [programs, setPrograms] = useState<ProgramDocument[]>([]);
-  const [votes, setVotes] = useState<ParliamentaryVote[]>([]);
-  const [articles, setArticles] = useState<Article[]>([]);
+  const [chamber, setChamber] = useState<ChamberFilter>('all');
+  const [interviews, setInterviews] = useState<Interview[] | null>(null);
+  const [programs, setPrograms] = useState<ProgramDocument[] | null>(null);
+  const [votes, setVotes] = useState<ParliamentaryVote[] | null>(null);
+  const [articles, setArticles] = useState<Article[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tabLoading, setTabLoading] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
-    api
-      .candidate(slug)
-      .then(setCandidate)
-      .catch((e) => setError(e.message));
+    setCandidate(null);
+    setInterviews(null);
+    setPrograms(null);
+    setVotes(null);
+    setArticles(null);
+    setError(null);
+    setTab('votes');
+    setChamber('all');
+
+    let cancelled = false;
+    Promise.all([api.candidate(slug), api.votes(slug)])
+      .then(([detail, votePage]) => {
+        if (cancelled) return;
+        setCandidate(detail);
+        setVotes(votePage.items);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [slug]);
 
   useEffect(() => {
-    if (!slug) return;
-    if (tab === 'interventions') {
-      api.interviews(slug).then((r) => setInterviews(r.items));
-    } else if (tab === 'programme') {
-      api.programs(slug).then((r) => setPrograms(r.items));
-    } else if (tab === 'votes') {
-      api.votes(slug).then((r) => setVotes(r.items));
-    } else {
-      api.articles(slug).then((r) => setArticles(r.items));
+    if (!slug || !candidate) return;
+    if (tab === 'votes') return; // préchargé avec le détail candidat
+
+    let cancelled = false;
+
+    async function loadTab() {
+      if (tab === 'interventions' && interviews !== null) return;
+      if (tab === 'programme' && programs !== null) return;
+      if (tab === 'articles' && articles !== null) return;
+
+      setTabLoading(true);
+      try {
+        if (tab === 'interventions') {
+          const r = await api.interviews(slug!);
+          if (!cancelled) setInterviews(r.items);
+        } else if (tab === 'programme') {
+          const r = await api.programs(slug!);
+          if (!cancelled) setPrograms(r.items);
+        } else if (tab === 'articles') {
+          const r = await api.articles(slug!);
+          if (!cancelled) setArticles(r.items);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setTabLoading(false);
+      }
     }
-  }, [slug, tab]);
+
+    void loadTab();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, tab, candidate, interviews, programs, articles]);
+
+  const votesByChamber = useMemo(() => {
+    const list = votes || [];
+    const map: Record<string, ParliamentaryVote[]> = {
+      assemblee: [],
+      senat: [],
+      parlement_europeen: [],
+    };
+    for (const v of list) {
+      const key = v.chamber in map ? v.chamber : 'assemblee';
+      map[key].push(v);
+    }
+    return map;
+  }, [votes]);
+
+  const filteredVotes = useMemo(() => {
+    if (!votes) return [];
+    if (chamber === 'all') return votes;
+    return votesByChamber[chamber] || [];
+  }, [votes, chamber, votesByChamber]);
 
   if (error) return <ErrorMessage message={error} />;
   if (!candidate) return <Loading />;
@@ -123,57 +189,127 @@ export function CandidateDetailPage() {
         </button>
       </div>
 
-      {tab === 'votes' && (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Scrutin</th>
-              <th>Position</th>
-              <th>Groupe</th>
-              <th>Aligné</th>
-              <th>Date</th>
-              <th>Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {votes.map((v) => (
-              <tr key={v.id}>
-                <td>{v.title}</td>
-                <td>
-                  <span className={`vote-${v.position}`}>{v.position}</span>
-                </td>
-                <td>
-                  {v.group_position ? (
-                    <span className={`vote-${v.group_position}`}>{v.group_position}</span>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td>
-                  {v.aligned_with_group == null ? (
-                    '—'
-                  ) : v.aligned_with_group ? (
-                    <span className="align-yes">oui</span>
-                  ) : (
-                    <span className="align-no">non</span>
-                  )}
-                </td>
-                <td>{formatDate(v.vote_date)}</td>
-                <td>
-                  <SourceLink url={v.source.url} />
-                </td>
-              </tr>
-            ))}
-            {votes.length === 0 && (
-              <tr>
-                <td colSpan={6}>Aucun vote collecté</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      {tabLoading && <Loading />}
+
+      {tab === 'votes' && votes === null && !tabLoading && <Loading />}
+
+      {tab === 'votes' && votes !== null && !tabLoading && (
+        <section className="vote-space">
+          <div className="chamber-tabs">
+            <button
+              type="button"
+              className={chamber === 'all' ? 'active' : ''}
+              onClick={() => setChamber('all')}
+            >
+              Tous ({votes?.length || 0})
+            </button>
+            <button
+              type="button"
+              className={chamber === 'assemblee' ? 'active' : ''}
+              onClick={() => setChamber('assemblee')}
+            >
+              Assemblée ({votesByChamber.assemblee.length})
+            </button>
+            <button
+              type="button"
+              className={chamber === 'senat' ? 'active' : ''}
+              onClick={() => setChamber('senat')}
+            >
+              Sénat ({votesByChamber.senat.length})
+            </button>
+            <button
+              type="button"
+              className={chamber === 'parlement_europeen' ? 'active' : ''}
+              onClick={() => setChamber('parlement_europeen')}
+            >
+              Europe ({votesByChamber.parlement_europeen.length})
+            </button>
+          </div>
+
+          {chamber === 'parlement_europeen' && votesByChamber.parlement_europeen.length === 0 && (
+            <p className="empty-state">
+              Les votes du Parlement européen ne sont pas encore collectés (CLAIR.vote
+              couvre l’Assemblée et le Sénat uniquement).
+            </p>
+          )}
+
+          {chamber === 'senat' && votesByChamber.senat.length === 0 && (
+            <p className="empty-state">
+              Aucun vote au Sénat pour ce candidat (pas de matching sénateur CLAIR, ou pas
+              encore ingéré).
+            </p>
+          )}
+
+          {filteredVotes.length > 0 && (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Chambre</th>
+                  <th>Scrutin</th>
+                  <th>Position</th>
+                  <th>Groupe</th>
+                  <th>Aligné</th>
+                  <th>Date</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredVotes.map((v) => (
+                  <tr key={v.id}>
+                    <td>
+                      <span className="chamber-pill">
+                        {CHAMBER_LABELS[v.chamber] || v.chamber}
+                      </span>
+                      {v.parliamentary_group && (
+                        <div className="vote-group-inline">
+                          <GroupBadge
+                            name={v.parliamentary_group.name}
+                            color={v.parliamentary_group.color}
+                            to={`/groups/${v.parliamentary_group.slug}`}
+                          />
+                        </div>
+                      )}
+                    </td>
+                    <td>{v.title}</td>
+                    <td>
+                      <span className={`vote-${v.position}`}>{v.position}</span>
+                    </td>
+                    <td>
+                      {v.group_position ? (
+                        <span className={`vote-${v.group_position}`}>{v.group_position}</span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      {v.aligned_with_group == null ? (
+                        '—'
+                      ) : v.aligned_with_group ? (
+                        <span className="align-yes">oui</span>
+                      ) : (
+                        <span className="align-no">non</span>
+                      )}
+                    </td>
+                    <td>{formatDate(v.vote_date)}</td>
+                    <td>
+                      <SourceLink url={clairScrutinUrl(v)} label="CLAIR" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {chamber === 'all' && filteredVotes.length === 0 && (
+            <p className="empty-state">Aucun vote collecté</p>
+          )}
+          {chamber === 'assemblee' && votesByChamber.assemblee.length === 0 && (
+            <p className="empty-state">Aucun vote à l’Assemblée collecté</p>
+          )}
+        </section>
       )}
 
-      {tab === 'interventions' && (
+      {tab === 'interventions' && !tabLoading && (
         <table className="data-table">
           <thead>
             <tr>
@@ -185,7 +321,7 @@ export function CandidateDetailPage() {
             </tr>
           </thead>
           <tbody>
-            {interviews.map((i) => (
+            {(interviews || []).map((i) => (
               <tr key={i.id}>
                 <td>{i.title}</td>
                 <td>{i.channel_name || '—'}</td>
@@ -196,7 +332,7 @@ export function CandidateDetailPage() {
                 </td>
               </tr>
             ))}
-            {interviews.length === 0 && (
+            {(interviews || []).length === 0 && (
               <tr>
                 <td colSpan={5}>Aucune intervention collectée</td>
               </tr>
@@ -205,9 +341,9 @@ export function CandidateDetailPage() {
         </table>
       )}
 
-      {tab === 'programme' && (
+      {tab === 'programme' && !tabLoading && (
         <div className="program-list">
-          {programs.map((p) => {
+          {(programs || []).map((p) => {
             const retrievedVia =
               (p.source.raw_metadata?.retrieved_via as string | undefined) || 'curated_seed';
             const sourceUrl =
@@ -234,11 +370,13 @@ export function CandidateDetailPage() {
               </article>
             );
           })}
-          {programs.length === 0 && <p className="empty-state">Aucun document de programme</p>}
+          {(programs || []).length === 0 && (
+            <p className="empty-state">Aucun document de programme</p>
+          )}
         </div>
       )}
 
-      {tab === 'articles' && (
+      {tab === 'articles' && !tabLoading && (
         <table className="data-table">
           <thead>
             <tr>
@@ -251,7 +389,7 @@ export function CandidateDetailPage() {
             </tr>
           </thead>
           <tbody>
-            {articles.map((a) => {
+            {(articles || []).map((a) => {
               const feedUrl = a.source.raw_metadata?.feed_url as string | undefined;
               const feedTitle =
                 (a.source.raw_metadata?.feed_title as string | undefined) ||
@@ -278,7 +416,7 @@ export function CandidateDetailPage() {
                 </tr>
               );
             })}
-            {articles.length === 0 && (
+            {(articles || []).length === 0 && (
               <tr>
                 <td colSpan={6}>Aucun article collecté</td>
               </tr>

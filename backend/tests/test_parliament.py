@@ -62,6 +62,7 @@ def test_parse_clair_votes_uses_scrutin_numero():
     assert records[0].position == "contre"
     assert records[0].group_position == "contre"
     assert records[0].chamber == "assemblee"
+    assert records[0].source_url == "https://clair.vote/scrutins/8434"
 
 
 def test_parse_group_from_depute_payload():

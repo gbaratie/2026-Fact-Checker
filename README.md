@@ -14,7 +14,7 @@ Collecte et exploration structurée des données sur les candidats à la présid
 | Type | Source | Connecteur |
 |------|--------|------------|
 | Interviews | YouTube Data API v3 + transcripts | `app/connectors/youtube.py` |
-| Votes | [CLAIR.vote](https://clair.vote/api) + open data AN | `app/connectors/parliament.py` |
+| Votes | [CLAIR.vote](https://clair.vote) (Assemblée + Sénat) + open data AN | `app/connectors/parliament.py` |
 | Articles | Flux RSS presse FR (Le Monde, Figaro, Libé, Mediapart, etc.) — provenance `feed_url` stockée | `app/connectors/press_rss.py` |
 | Programmes | Documents curated (sites/PDF officiels) dans `seeds/candidates.yaml` | `app/connectors/programs.py` |
 
@@ -120,23 +120,25 @@ Secrets à ajouter dans **Settings → Secrets and variables → Actions** :
 
 ## Gestion des candidats
 
-Interface web : **Gestion** (`/manage`) — ajouter / supprimer des candidats et importer le seed YAML. Protégé par le header `X-Ingestion-Secret` (= `INGESTION_SECRET` sur Render).
+Interface web : **Gestion** (`/manage`) — ajouter / modifier (statut, parti, slug CLAIR) / supprimer des candidats. Protégé par le header `X-Ingestion-Secret` (= `INGESTION_SECRET` sur Render).
 
-Éditer aussi [`backend/seeds/candidates.yaml`](backend/seeds/candidates.yaml) puis :
+Pour peupler une base vide depuis le YAML :
 
 ```bash
 make seed
+# ou POST /admin/seed-candidates
 ```
 
-Le script (et l’import via `/admin/seed-candidates`) tente un matching automatique des IDs parlementaires via CLAIR.vote.
+Le matching des IDs parlementaires (Assemblée + Sénat) passe par CLAIR.vote.
 
 API admin :
 
 | Endpoint | Description |
 |----------|-------------|
 | `POST /candidates` | Créer un candidat (`X-Ingestion-Secret`) |
+| `PATCH /candidates/{slug}` | Modifier parti, statut, slug CLAIR |
 | `DELETE /candidates/{slug}` | Supprimer un candidat et ses données liées |
-| `POST /admin/seed-candidates` | Importer/mettre à jour le YAML seed |
+| `POST /admin/seed-candidates` | Importer/mettre à jour le YAML seed (CLI / API) |
 
 ## Structure du projet
 

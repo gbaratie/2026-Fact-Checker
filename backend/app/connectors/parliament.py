@@ -48,7 +48,7 @@ class DeputeMatch:
 
 
 class ParliamentConnector:
-    """Connecteur CLAIR.vote pour les votes à l'Assemblée (et fallback AN)."""
+    """Connecteur CLAIR.vote pour les votes Assemblée / Sénat (et fallback AN)."""
 
     def __init__(self, page_size: int = 100, max_votes: int | None = 200) -> None:
         self.clair_base = settings.clair_api_base.rstrip("/")
@@ -63,32 +63,59 @@ class ParliamentConnector:
         self, full_name: str, preferred_slug: str | None = None
     ) -> DeputeMatch | None:
         """Résout un candidat vers un député CLAIR via slug exact, puis recherche stricte."""
+        return await self._resolve_person(
+            "deputes", full_name, preferred_slug=preferred_slug
+        )
+
+    async def resolve_senateur(
+        self, full_name: str, preferred_slug: str | None = None
+    ) -> DeputeMatch | None:
+        """Résout un candidat vers un sénateur CLAIR via slug exact, puis recherche stricte."""
+        return await self._resolve_person(
+            "senateurs", full_name, preferred_slug=preferred_slug
+        )
+
+    async def _resolve_person(
+        self,
+        collection: str,
+        full_name: str,
+        preferred_slug: str | None = None,
+    ) -> DeputeMatch | None:
         if preferred_slug:
-            match = await self.get_depute_by_slug(preferred_slug)
+            match = await self.get_person_by_slug(collection, preferred_slug)
             if match:
                 return match
-
-        return await self.search_depute(full_name)
+        return await self.search_person(collection, full_name)
 
     async def get_depute_by_slug(self, slug: str) -> DeputeMatch | None:
+        return await self.get_person_by_slug("deputes", slug)
+
+    async def get_person_by_slug(self, collection: str, slug: str) -> DeputeMatch | None:
         async with httpx.AsyncClient(timeout=30) as client:
             try:
-                resp = await self._clair_get(client, f"{self.clair_base}/deputes/{slug}")
+                resp = await self._clair_get(
+                    client, f"{self.clair_base}/{collection}/{slug}"
+                )
                 if resp.status_code == 404:
                     return None
                 resp.raise_for_status()
                 data = resp.json().get("data") or resp.json()
                 return self._to_match(data)
             except Exception as e:
-                logger.warning("CLAIR get_depute_by_slug failed for %s: %s", slug, e)
+                logger.warning(
+                    "CLAIR get_%s_by_slug failed for %s: %s", collection, slug, e
+                )
         return None
 
     async def search_depute(self, name: str) -> DeputeMatch | None:
+        return await self.search_person("deputes", name)
+
+    async def search_person(self, collection: str, name: str) -> DeputeMatch | None:
         async with httpx.AsyncClient(timeout=30) as client:
             try:
                 resp = await self._clair_get(
                     client,
-                    f"{self.clair_base}/deputes",
+                    f"{self.clair_base}/{collection}",
                     params={"search": name},
                 )
                 resp.raise_for_status()
@@ -98,11 +125,21 @@ class ParliamentConnector:
                     return None
                 return self._best_name_match(name, items)
             except Exception as e:
-                logger.warning("CLAIR search failed for %s: %s", name, e)
+                logger.warning("CLAIR %s search failed for %s: %s", collection, name, e)
         return None
 
     async def fetch_votes_for_depute(self, depute_slug: str) -> list[VoteRecord]:
-        """Récupère les votes via /deputes/{slug}/votes (CLAIR utilise le slug, pas l'UUID)."""
+        """Récupère les votes Assemblée via /deputes/{slug}/votes."""
+        return await self.fetch_votes_for_person("deputes", depute_slug)
+
+    async def fetch_votes_for_senateur(self, senateur_slug: str) -> list[VoteRecord]:
+        """Récupère les votes Sénat via /senateurs/{slug}/votes."""
+        return await self.fetch_votes_for_person("senateurs", senateur_slug)
+
+    async def fetch_votes_for_person(
+        self, collection: str, person_slug: str
+    ) -> list[VoteRecord]:
+        """Récupère les votes CLAIR (utilise le slug, pas l'UUID)."""
         records: list[VoteRecord] = []
         page_num = 1
         async with httpx.AsyncClient(timeout=60) as client:
@@ -110,11 +147,13 @@ class ParliamentConnector:
                 try:
                     resp = await self._clair_get(
                         client,
-                        f"{self.clair_base}/deputes/{depute_slug}/votes",
+                        f"{self.clair_base}/{collection}/{person_slug}/votes",
                         params={"limit": self.page_size, "page": page_num},
                     )
                     if resp.status_code == 404:
-                        logger.warning("CLAIR votes not found for slug %s", depute_slug)
+                        logger.warning(
+                            "CLAIR votes not found for %s/%s", collection, person_slug
+                        )
                         break
                     resp.raise_for_status()
                     payload = resp.json()
@@ -133,14 +172,18 @@ class ParliamentConnector:
                     if not has_next:
                         break
                 except Exception as e:
-                    logger.warning("CLAIR votes failed for %s: %s", depute_slug, e)
+                    logger.warning(
+                        "CLAIR votes failed for %s/%s: %s", collection, person_slug, e
+                    )
                     break
 
         if records:
             return records
 
-        # Fallback open data AN (souvent fragile) — best effort.
-        return await self._fetch_an_fallback(depute_slug)
+        # Fallback open data AN (Assemblée uniquement) — best effort.
+        if collection == "deputes":
+            return await self._fetch_an_fallback(person_slug)
+        return records
 
     async def _clair_get(
         self,
@@ -211,10 +254,10 @@ class ParliamentConnector:
                 scrutin.get("date") or item.get("date") or scrutin.get("dateScrutin")
             )
             chamber = scrutin.get("chambre") or item.get("chambre") or "assemblee"
-            source_url = (
-                scrutin.get("url")
-                or f"https://clair.vote/scrutins/{scrutin.get('id') or scrutin_id}"
-            )
+            # clair.vote attend le numéro de scrutin, pas l'UUID interne.
+            numero = scrutin.get("numero")
+            public_id = str(numero) if numero is not None else scrutin_id
+            source_url = scrutin.get("url") or f"https://clair.vote/scrutins/{public_id}"
 
             records.append(
                 VoteRecord(

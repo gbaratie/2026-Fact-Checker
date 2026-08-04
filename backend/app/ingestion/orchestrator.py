@@ -103,12 +103,14 @@ class IngestionOrchestrator:
 
     async def _ingest_votes(self, candidate: Candidate, run: IngestionRun) -> int:
         external_ids = dict(candidate.external_ids or {})
-        clair_slug = external_ids.get("clair_slug")
-        group = None
+        count = 0
 
+        # Assemblée nationale
+        clair_slug = external_ids.get("clair_slug")
         depute = await self.parliament.resolve_depute(
             candidate.full_name, preferred_slug=clair_slug or candidate.slug
         )
+        an_group = None
         if depute:
             clair_slug = depute.slug
             external_ids["clair_slug"] = depute.slug
@@ -116,20 +118,51 @@ class IngestionOrchestrator:
             external_ids["depute_id"] = depute.id
             candidate.external_ids = external_ids
             if depute.group:
-                group = await self._upsert_group(depute.group)
-                candidate.parliamentary_group_id = group.id
+                an_group = await self._upsert_group(depute.group)
+                candidate.parliamentary_group_id = an_group.id
             await self.session.flush()
 
-        if not clair_slug:
-            logger.info("No CLAIR deputy match for %s, skipping votes", candidate.slug)
-            return 0
+        if clair_slug:
+            records = await self.parliament.fetch_votes_for_depute(clair_slug)
+            count += await self._store_vote_records(candidate, run, records, an_group)
+        else:
+            logger.info("No CLAIR deputy match for %s, skipping AN votes", candidate.slug)
 
-        records = await self.parliament.fetch_votes_for_depute(clair_slug)
+        # Sénat (CLAIR)
+        senateur_slug = external_ids.get("clair_senateur_slug")
+        senateur = await self.parliament.resolve_senateur(
+            candidate.full_name, preferred_slug=senateur_slug
+        )
+        senat_group = None
+        if senateur:
+            external_ids["clair_senateur_slug"] = senateur.slug
+            external_ids["clair_senateur_id"] = senateur.id
+            candidate.external_ids = external_ids
+            if senateur.group:
+                senat_group = await self._upsert_group(senateur.group)
+            await self.session.flush()
+            records = await self.parliament.fetch_votes_for_senateur(senateur.slug)
+            count += await self._store_vote_records(candidate, run, records, senat_group)
+        else:
+            logger.info(
+                "No CLAIR senator match for %s, skipping Senate votes", candidate.slug
+            )
+
+        return count
+
+    async def _store_vote_records(
+        self,
+        candidate: Candidate,
+        run: IngestionRun,
+        records: list,
+        group: ParliamentaryGroup | None,
+    ) -> int:
         count = 0
         for record in records:
             existing = await self.session.execute(
                 select(ParliamentaryVote).where(
                     ParliamentaryVote.candidate_id == candidate.id,
+                    ParliamentaryVote.chamber == record.chamber,
                     ParliamentaryVote.scrutin_id == record.scrutin_id,
                 )
             )
@@ -176,8 +209,9 @@ class IngestionOrchestrator:
             select(ParliamentaryGroup).where(ParliamentaryGroup.clair_id == info.clair_id)
         )
         group = result.scalar_one_or_none()
+        slug = info.slug
         if group:
-            group.slug = info.slug
+            group.slug = group.slug  # keep existing slug to preserve URLs
             group.name = info.name
             group.full_name = info.full_name
             group.color = info.color
@@ -187,9 +221,16 @@ class IngestionOrchestrator:
             group.raw_metadata = info.raw
             return group
 
+        # Slugs CLAIR peuvent se chevaucher entre chambres (ex. SOC AN / SOC Sénat).
+        existing_slug = await self.session.execute(
+            select(ParliamentaryGroup).where(ParliamentaryGroup.slug == slug)
+        )
+        if existing_slug.scalar_one_or_none():
+            slug = f"{info.slug}-{info.chamber}"
+
         group = ParliamentaryGroup(
             clair_id=info.clair_id,
-            slug=info.slug,
+            slug=slug,
             name=info.name,
             full_name=info.full_name,
             color=info.color,
@@ -201,7 +242,6 @@ class IngestionOrchestrator:
         self.session.add(group)
         await self.session.flush()
         return group
-
     async def _ingest_articles(self, candidate: Candidate, run: IngestionRun) -> int:
         records = await self.press.fetch_articles_for_candidate(candidate.full_name)
         count = 0

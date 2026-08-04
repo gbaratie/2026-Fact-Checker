@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, Candidate } from '../api/client';
 import { ErrorMessage, GroupBadge, Loading } from '../components/Layout';
+
+const STATUS_LABELS: Record<string, string> = {
+  potential: 'Potentiel',
+  declared: 'Déclaré',
+  withdrawn: 'Retiré',
+};
 
 export function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     api
@@ -22,55 +29,45 @@ export function CandidatesPage() {
   return (
     <div>
       <h1>Candidats</h1>
-      <p className="subtitle">Vue individuelle — votes, parti et groupe parlementaire.</p>
+      <p className="subtitle">
+        Clique sur une ligne pour ouvrir la fiche — votes, interventions, programme et presse.
+      </p>
       {candidates.length === 0 ? (
         <p className="empty-state">
-          Aucun candidat en base. Va dans <Link to="/manage">Gestion</Link> pour importer le
-          seed ou en ajouter.
+          Aucun candidat en base. Va dans <Link to="/manage">Gestion</Link> pour en ajouter.
         </p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Nom</th>
-              <th>Parti</th>
-              <th>Groupe AN</th>
-              <th>Statut</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {candidates.map((c) => (
-              <tr key={c.id}>
-                <td>{c.full_name}</td>
-                <td>
-                  {c.party ? (
-                    <Link to={`/parties/${encodeURIComponent(c.party)}`}>{c.party}</Link>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td>
-                  {c.parliamentary_group ? (
-                    <GroupBadge
-                      name={c.parliamentary_group.name}
-                      color={c.parliamentary_group.color}
-                      to={`/groups/${c.parliamentary_group.slug}`}
-                    />
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td>
-                  <span className={`badge badge-${c.status}`}>{c.status}</span>
-                </td>
-                <td>
-                  <Link to={`/candidates/${c.slug}`}>Détail</Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="candidate-list">
+          {candidates.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className="candidate-row"
+              onClick={() => navigate(`/candidates/${c.slug}`)}
+            >
+              <div className="candidate-row-main">
+                <span className="candidate-row-name">{c.full_name}</span>
+                <span className={`badge badge-${c.status}`}>
+                  {STATUS_LABELS[c.status] || c.status}
+                </span>
+              </div>
+              <div className="candidate-row-meta">
+                <span className="candidate-row-party">{c.party || 'Parti non renseigné'}</span>
+                {c.parliamentary_group ? (
+                  <GroupBadge
+                    name={c.parliamentary_group.name}
+                    color={c.parliamentary_group.color}
+                  />
+                ) : (
+                  <span className="muted">Pas de groupe AN</span>
+                )}
+              </div>
+              <span className="candidate-row-chevron" aria-hidden>
+                →
+              </span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

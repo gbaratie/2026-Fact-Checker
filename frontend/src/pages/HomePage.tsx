@@ -1,28 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, AppStats } from '../api/client';
 import { ErrorMessage, Loading } from '../components/Layout';
 
 export function HomePage() {
-  const [health, setHealth] = useState<{ status: string; database: string } | null>(null);
-  const [candidateCount, setCandidateCount] = useState(0);
-  const [lastRun, setLastRun] = useState<string | null>(null);
+  const [stats, setStats] = useState<AppStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.health(), api.candidates(), api.ingestionRuns()])
-      .then(([h, candidates, runs]) => {
-        setHealth(h);
-        setCandidateCount(candidates.length);
-        if (runs.length > 0) {
-          setLastRun(runs[0].started_at);
-        }
-      })
+    api
+      .stats()
+      .then(setStats)
       .catch((e) => setError(e.message));
   }, []);
 
   if (error) return <ErrorMessage message={error} />;
-  if (!health) return <Loading />;
+  if (!stats) return <Loading />;
 
   return (
     <div>
@@ -33,15 +26,19 @@ export function HomePage() {
 
       <div className="stats-grid">
         <div className="stat-card">
-          <span className="stat-value">{candidateCount}</span>
+          <span className="stat-value">{stats.candidate_count}</span>
           <span className="stat-label">Candidats suivis</span>
         </div>
         <div className="stat-card">
-          <span className="stat-value">{health.database}</span>
+          <span className="stat-value">{stats.database}</span>
           <span className="stat-label">Base de données</span>
         </div>
         <div className="stat-card">
-          <span className="stat-value">{lastRun ? new Date(lastRun).toLocaleDateString('fr-FR') : '—'}</span>
+          <span className="stat-value">
+            {stats.last_ingestion_at
+              ? new Date(stats.last_ingestion_at).toLocaleDateString('fr-FR')
+              : '—'}
+          </span>
           <span className="stat-label">Dernière ingestion</span>
         </div>
       </div>
@@ -54,13 +51,13 @@ export function HomePage() {
           Gestion
         </Link>
         <Link to="/groups" className="btn btn-secondary">
-          Groupes AN
+          Groupes
         </Link>
         <Link to="/parties" className="btn btn-secondary">
           Partis
         </Link>
         <Link to="/ingestion" className="btn btn-secondary">
-          Historique d'ingestion
+          Historique d&apos;ingestion
         </Link>
       </div>
     </div>
