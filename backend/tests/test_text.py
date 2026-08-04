@@ -1,8 +1,14 @@
-from app.utils.text import candidate_mentioned, normalize_text
+from app.utils.text import candidate_mentioned, normalize_text, slugify
 
 
 def test_normalize_text():
     assert normalize_text("François Ruffin") == "francois ruffin"
+
+
+def test_slugify():
+    assert slugify("Gabriel Attal") == "gabriel-attal"
+    assert slugify("  Marine Le Pen ") == "marine-le-pen"
+    assert slugify("Jean-Luc Mélenchon") == "jean-luc-melenchon"
 
 
 def test_candidate_mentioned_full_name():

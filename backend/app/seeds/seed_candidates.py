@@ -15,11 +15,13 @@ logger = logging.getLogger(__name__)
 SEEDS_PATH = Path(__file__).resolve().parents[2] / "seeds" / "candidates.yaml"
 
 
-async def seed_candidates() -> None:
+async def seed_candidates() -> dict[str, int]:
     with SEEDS_PATH.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     parliament = ParliamentConnector()
+    created = 0
+    updated = 0
 
     async with async_session_factory() as session:
         for entry in data.get("candidates", []):
@@ -51,6 +53,7 @@ async def seed_candidates() -> None:
                 candidate.party = entry.get("party")
                 candidate.status = entry.get("status", "potential")
                 candidate.external_ids = external_ids
+                updated += 1
                 logger.info("Updated candidate %s", entry["slug"])
             else:
                 candidate = Candidate(
@@ -62,11 +65,14 @@ async def seed_candidates() -> None:
                 )
                 session.add(candidate)
                 await session.flush()
+                created += 1
                 logger.info("Created candidate %s", entry["slug"])
 
             await _seed_programs(session, candidate, entry.get("programs") or [])
 
         await session.commit()
+
+    return {"created": created, "updated": updated, "total": created + updated}
 
 
 async def _seed_programs(session, candidate: Candidate, programs: list[dict]) -> None:

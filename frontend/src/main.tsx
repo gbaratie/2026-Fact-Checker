@@ -7,6 +7,7 @@ import { CandidatesPage } from './pages/CandidatesPage';
 import { GroupDetailPage, GroupsPage } from './pages/GroupsPage';
 import { HomePage } from './pages/HomePage';
 import { IngestionPage } from './pages/IngestionPage';
+import { ManageCandidatesPage } from './pages/ManageCandidatesPage';
 import { PartiesPage, PartyDetailPage } from './pages/PartiesPage';
 import './index.css';
 
@@ -18,6 +19,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<HomePage />} />
           <Route path="/candidates" element={<CandidatesPage />} />
           <Route path="/candidates/:slug" element={<CandidateDetailPage />} />
+          <Route path="/manage" element={<ManageCandidatesPage />} />
           <Route path="/groups" element={<GroupsPage />} />
           <Route path="/groups/:slug" element={<GroupDetailPage />} />
           <Route path="/parties" element={<PartiesPage />} />

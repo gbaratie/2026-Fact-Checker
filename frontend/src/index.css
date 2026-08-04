@@ -304,6 +304,91 @@ h1 {
   border-radius: 6px;
 }
 
+.success-banner {
+  color: #155724;
+  padding: 1rem;
+  background: #d4edda;
+  border-radius: 6px;
+  margin: 1rem 0;
+}
+
+.admin-panel {
+  background: white;
+  border: 1px solid #e2e6ef;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-panel h2 {
+  font-size: 1.05rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.admin-panel-header h2 {
+  margin-bottom: 0;
+}
+
+.admin-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem 1rem;
+  align-items: end;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.form-field input,
+.form-field select {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #d0d5e0;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.btn {
+  border: none;
+  cursor: pointer;
+}
+
+.btn:disabled,
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  display: inline-block;
+  padding: 0.4rem 0.75rem;
+  background: #c0392b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.badge-withdrawn {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
 .vote-pour,
 .vote-contre {
   font-weight: 600;

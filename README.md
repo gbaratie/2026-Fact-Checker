@@ -80,6 +80,9 @@ make ingest-votes
 | `GET /parties/{party}` | Détail parti + candidats |
 | `GET /ingestion/runs` | Historique des collectes |
 | `POST /ingestion/trigger` | Déclenchement manuel (header `X-Ingestion-Secret`) |
+| `POST /candidates` | Créer un candidat (header `X-Ingestion-Secret`) |
+| `DELETE /candidates/{slug}` | Supprimer un candidat (header `X-Ingestion-Secret`) |
+| `POST /admin/seed-candidates` | Importer le seed YAML (header `X-Ingestion-Secret`) |
 
 ## Déploiement
 
@@ -117,13 +120,23 @@ Secrets à ajouter dans **Settings → Secrets and variables → Actions** :
 
 ## Gestion des candidats
 
-Éditer [`backend/seeds/candidates.yaml`](backend/seeds/candidates.yaml) puis :
+Interface web : **Gestion** (`/manage`) — ajouter / supprimer des candidats et importer le seed YAML. Protégé par le header `X-Ingestion-Secret` (= `INGESTION_SECRET` sur Render).
+
+Éditer aussi [`backend/seeds/candidates.yaml`](backend/seeds/candidates.yaml) puis :
 
 ```bash
 make seed
 ```
 
-Le script tente un matching automatique des IDs parlementaires via CLAIR.vote.
+Le script (et l’import via `/admin/seed-candidates`) tente un matching automatique des IDs parlementaires via CLAIR.vote.
+
+API admin :
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /candidates` | Créer un candidat (`X-Ingestion-Secret`) |
+| `DELETE /candidates/{slug}` | Supprimer un candidat et ses données liées |
+| `POST /admin/seed-candidates` | Importer/mettre à jour le YAML seed |
 
 ## Structure du projet
 
