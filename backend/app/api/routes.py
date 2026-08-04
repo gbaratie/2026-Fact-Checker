@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -16,6 +16,7 @@ from app.models import (
 )
 from app.schemas import (
     ArticleOut,
+    CandidateCreate,
     CandidateDetailOut,
     CandidateOut,
     GroupMemberOut,
@@ -28,10 +29,17 @@ from app.schemas import (
     ParliamentaryVoteOut,
     PartyOut,
     ProgramDocumentOut,
+    SeedCandidatesOut,
     VoteStatsOut,
 )
+from app.services import candidates as candidate_service
 
 router = APIRouter()
+
+
+def require_ingestion_secret(x_ingestion_secret: str = Header(...)) -> None:
+    if x_ingestion_secret != settings.ingestion_secret:
+        raise HTTPException(status_code=403, detail="Secret invalide")
 
 
 @router.get("/health", response_model=HealthOut)
@@ -51,6 +59,47 @@ async def list_candidates(db: AsyncSession = Depends(get_db)) -> list[CandidateO
         .order_by(Candidate.full_name)
     )
     return [CandidateOut.model_validate(c) for c in result.scalars().all()]
+
+
+@router.post(
+    "/candidates",
+    response_model=CandidateOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def create_candidate(
+    payload: CandidateCreate,
+    db: AsyncSession = Depends(get_db),
+) -> CandidateOut:
+    try:
+        candidate = await candidate_service.create_candidate(db, payload)
+    except LookupError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return CandidateOut.model_validate(candidate)
+
+
+@router.delete(
+    "/candidates/{slug}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def delete_candidate(slug: str, db: AsyncSession = Depends(get_db)) -> None:
+    try:
+        await candidate_service.delete_candidate(db, slug)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post(
+    "/admin/seed-candidates",
+    response_model=SeedCandidatesOut,
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def seed_candidates_endpoint() -> SeedCandidatesOut:
+    stats = await candidate_service.import_seed_candidates()
+    return SeedCandidatesOut(**stats)
 
 
 @router.get("/candidates/{slug}", response_model=CandidateDetailOut)
@@ -398,14 +447,12 @@ async def list_ingestion_runs(
     return list(result.scalars().all())
 
 
-@router.post("/ingestion/trigger", response_model=IngestionRunOut)
-async def trigger_ingestion(
-    x_ingestion_secret: str = Header(...),
-    db: AsyncSession = Depends(get_db),
-) -> IngestionRun:
-    if x_ingestion_secret != settings.ingestion_secret:
-        raise HTTPException(status_code=403, detail="Secret invalide")
-
+@router.post(
+    "/ingestion/trigger",
+    response_model=IngestionRunOut,
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def trigger_ingestion(db: AsyncSession = Depends(get_db)) -> IngestionRun:
     from app.ingestion.orchestrator import IngestionOrchestrator
 
     orchestrator = IngestionOrchestrator(db)

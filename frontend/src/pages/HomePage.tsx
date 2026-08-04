@@ -50,6 +50,9 @@ export function HomePage() {
         <Link to="/candidates" className="btn">
           Voir les candidats
         </Link>
+        <Link to="/manage" className="btn btn-secondary">
+          Gestion
+        </Link>
         <Link to="/groups" className="btn btn-secondary">
           Groupes AN
         </Link>

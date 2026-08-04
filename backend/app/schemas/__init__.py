@@ -1,7 +1,8 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 
 class SourceOut(BaseModel):
@@ -28,6 +29,33 @@ class ParliamentaryGroupOut(BaseModel):
     spectrum: str | None
 
 
+CandidateStatus = Literal["declared", "potential", "withdrawn"]
+
+
+class CandidateCreate(BaseModel):
+    full_name: str = Field(min_length=2, max_length=255)
+    party: str | None = Field(default=None, max_length=120)
+    status: CandidateStatus = "potential"
+    slug: str | None = Field(default=None, max_length=120)
+    clair_slug: str | None = Field(default=None, max_length=120)
+
+    @field_validator("full_name")
+    @classmethod
+    def strip_full_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if len(stripped) < 2:
+            raise ValueError("Le nom complet est trop court")
+        return stripped
+
+    @field_validator("party", "slug", "clair_slug")
+    @classmethod
+    def strip_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
 class CandidateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -38,6 +66,12 @@ class CandidateOut(BaseModel):
     external_ids: dict
     status: str
     parliamentary_group: ParliamentaryGroupOut | None = None
+
+
+class SeedCandidatesOut(BaseModel):
+    created: int
+    updated: int
+    total: int
 
 
 class VoteStatsOut(BaseModel):

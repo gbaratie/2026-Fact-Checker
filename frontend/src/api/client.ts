@@ -135,16 +135,65 @@ export interface Paginated<T> {
   page_size: number;
 }
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`);
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, init);
+  if (!res.ok) {
+    let detail = `API error: ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) {
+        detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
+      }
+    } catch {
+      // ignore non-JSON error bodies
+    }
+    throw new Error(detail);
+  }
+  if (res.status === 204) {
+    return undefined as T;
+  }
   return res.json();
+}
+
+function withSecret(secret: string, init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers);
+  headers.set('X-Ingestion-Secret', secret);
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return { ...init, headers };
+}
+
+export interface CandidateCreateInput {
+  full_name: string;
+  party?: string | null;
+  status?: 'declared' | 'potential' | 'withdrawn';
+  slug?: string | null;
+  clair_slug?: string | null;
+}
+
+export interface SeedCandidatesResult {
+  created: number;
+  updated: number;
+  total: number;
 }
 
 export const api = {
   health: () => fetchJson<{ status: string; database: string }>('/health'),
   candidates: () => fetchJson<Candidate[]>('/candidates'),
   candidate: (slug: string) => fetchJson<CandidateDetail>(`/candidates/${slug}`),
+  createCandidate: (secret: string, payload: CandidateCreateInput) =>
+    fetchJson<Candidate>('/candidates', withSecret(secret, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })),
+  deleteCandidate: (secret: string, slug: string) =>
+    fetchJson<void>(`/candidates/${slug}`, withSecret(secret, { method: 'DELETE' })),
+  seedCandidates: (secret: string) =>
+    fetchJson<SeedCandidatesResult>(
+      '/admin/seed-candidates',
+      withSecret(secret, { method: 'POST' }),
+    ),
   interviews: (slug: string, page = 1) =>
     fetchJson<Paginated<Interview>>(`/candidates/${slug}/interviews?page=${page}`),
   programs: (slug: string, page = 1) =>

@@ -11,6 +11,13 @@ def normalize_text(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 
+def slugify(text: str) -> str:
+    """Convertit un nom en slug URL (ex: « Gabriel Attal » → « gabriel-attal »)."""
+    normalized = unidecode(text).lower().strip()
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized).strip("-")
+    return re.sub(r"-{2,}", "-", slug)
+
+
 def _contains_phrase(text: str, phrase: str) -> bool:
     if not phrase:
         return False
