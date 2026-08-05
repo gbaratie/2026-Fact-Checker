@@ -75,6 +75,9 @@ make ingest-votes
 | `GET /candidates/{slug}/votes` | Votes parlementaires paginés (`?chamber=assemblee\|senat`) |
 | `GET /candidates/{slug}/articles` | Articles paginés |
 | `GET /candidates/{slug}/programs` | Documents de programme paginés |
+| `GET /candidates/{slug}/claims` | Positions structurées (claims) |
+| `GET /candidates/{slug}/coherence` | Cohérence déclaration ↔ vote par thème |
+| `GET /topics` | Référentiel de thèmes |
 | `GET /groups` | Groupes parlementaires (AN + Sénat) |
 | `GET /groups/{slug}` | Détail groupe + membres + stats |
 | `GET /parties` | Agrégation par parti politique |
@@ -152,8 +155,27 @@ docker-compose.yml Développement local
 .github/workflows  CI, Pages, ingestion quotidienne
 ```
 
-## Phase 2 (prévu)
+## Positions structurées & cohérence
 
-- Extraction des positions de programme depuis les transcripts
-- Détection d'incohérences entre votes, déclarations et articles
+Tables `topics`, `claims`, `vote_topics` : thèmes référentiels, positions déclaratives (stance + citation + source) et tagging des votes par thème.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /topics` | Liste des thèmes |
+| `POST /admin/seed-topics` | Importer `seeds/topics.yaml` (`X-Ingestion-Secret`) |
+| `GET /candidates/{slug}/claims` | Positions du candidat |
+| `POST /candidates/{slug}/claims` | Créer une position (`X-Ingestion-Secret`) |
+| `PATCH /claims/{id}` / `DELETE /claims/{id}` | Modifier / supprimer |
+| `PUT /votes/{id}/topics` | Remplacer les thèmes d'un vote |
+| `GET /candidates/{slug}/coherence` | Comparaison déclaration ↔ vote par thème |
+
+`make seed` importe d'abord les thèmes, puis les candidats.
+
+Statuts de cohérence : `aligned`, `conflict`, `mixed`, `claims_only`, `votes_only`, `abstention_only`.
+
+## Phase 2 (suite)
+
+- Extraction LLM des positions depuis transcripts / programmes
+- Curation assistée puis revue humaine
 - Dashboards analytiques
+- Sources sociales (X, Instagram) après un volume suffisant de claims validés

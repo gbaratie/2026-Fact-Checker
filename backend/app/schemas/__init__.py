@@ -105,11 +105,22 @@ class VoteStatsOut(BaseModel):
     loyalty_rate: float | None = None
 
 
+class TopicOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    slug: str
+    label: str
+    description: str | None = None
+    sort_order: int = 0
+
+
 class CandidateDetailOut(CandidateOut):
     interview_count: int = 0
     program_count: int = 0
     vote_count: int = 0
     article_count: int = 0
+    claim_count: int = 0
     vote_stats: VoteStatsOut | None = None
 
 
@@ -137,6 +148,7 @@ class ParliamentaryVoteOut(BaseModel):
     vote_date: datetime | None
     source: SourceOut
     parliamentary_group: ParliamentaryGroupOut | None = None
+    topics: list[TopicOut] = []
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -220,3 +232,123 @@ class PaginatedResponse(BaseModel):
 class HealthOut(BaseModel):
     status: str
     database: str
+
+
+ClaimStance = Literal["pour", "contre", "nuance", "inconnu"]
+EvidenceType = Literal["interview", "program", "article", "manual", "other"]
+ClaimMethod = Literal["manual", "llm", "rule"]
+CoherenceStatus = Literal[
+    "aligned",
+    "conflict",
+    "mixed",
+    "abstention_only",
+    "claims_only",
+    "votes_only",
+    "empty",
+]
+
+
+class SeedTopicsOut(BaseModel):
+    created: int
+    updated: int
+    total: int
+
+
+class ClaimCreate(BaseModel):
+    topic_slug: str = Field(min_length=1, max_length=120)
+    stance: ClaimStance
+    summary: str = Field(min_length=3, max_length=500)
+    quote: str | None = None
+    evidence_type: EvidenceType = "manual"
+    interview_id: UUID | None = None
+    program_document_id: UUID | None = None
+    article_id: UUID | None = None
+    source_url: str | None = None
+    method: ClaimMethod = "manual"
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+    @field_validator("topic_slug", "summary")
+    @classmethod
+    def strip_required(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Champ requis vide")
+        return stripped
+
+    @field_validator("quote", "source_url")
+    @classmethod
+    def strip_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class ClaimUpdate(BaseModel):
+    topic_slug: str | None = Field(default=None, min_length=1, max_length=120)
+    stance: ClaimStance | None = None
+    summary: str | None = Field(default=None, min_length=3, max_length=500)
+    quote: str | None = None
+    evidence_type: EvidenceType | None = None
+    interview_id: UUID | None = None
+    program_document_id: UUID | None = None
+    article_id: UUID | None = None
+    source_url: str | None = None
+    method: ClaimMethod | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+    @field_validator("topic_slug", "summary", "quote", "source_url")
+    @classmethod
+    def strip_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class ClaimOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    candidate_id: UUID
+    topic: TopicOut
+    stance: str
+    summary: str
+    quote: str | None = None
+    evidence_type: str
+    interview_id: UUID | None = None
+    program_document_id: UUID | None = None
+    article_id: UUID | None = None
+    source_url: str | None = None
+    method: str
+    confidence: float | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class VoteTopicSet(BaseModel):
+    topic_slugs: list[str] = Field(default_factory=list)
+
+    @field_validator("topic_slugs")
+    @classmethod
+    def normalize_slugs(cls, value: list[str]) -> list[str]:
+        seen: list[str] = []
+        for slug in value:
+            cleaned = slug.strip()
+            if cleaned and cleaned not in seen:
+                seen.append(cleaned)
+        return seen
+
+
+class TopicCoherenceOut(BaseModel):
+    topic: TopicOut
+    status: CoherenceStatus
+    claim_stances: list[str] = []
+    vote_positions: list[str] = []
+    claims_count: int = 0
+    votes_count: int = 0
+
+
+class CandidateCoherenceOut(BaseModel):
+    candidate_slug: str
+    topics: list[TopicCoherenceOut] = []

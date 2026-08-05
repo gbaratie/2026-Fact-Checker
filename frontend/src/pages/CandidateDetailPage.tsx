@@ -18,8 +18,9 @@ import {
   SourceLink,
   VoteStatsPanel,
 } from '../components/Layout';
+import { PositionsPanel } from '../components/PositionsPanel';
 
-type Tab = 'votes' | 'interventions' | 'programme' | 'articles';
+type Tab = 'votes' | 'positions' | 'interventions' | 'programme' | 'articles';
 type ChamberFilter = 'all' | 'assemblee' | 'senat' | 'parlement_europeen';
 
 const KIND_LABELS: Record<string, string> = {
@@ -38,6 +39,7 @@ export function CandidateDetailPage() {
   const [programs, setPrograms] = useState<ProgramDocument[] | null>(null);
   const [votes, setVotes] = useState<ParliamentaryVote[] | null>(null);
   const [articles, setArticles] = useState<Article[] | null>(null);
+  const [claimCount, setClaimCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [tabLoading, setTabLoading] = useState(false);
 
@@ -57,7 +59,8 @@ export function CandidateDetailPage() {
       .then(([detail, votePage]) => {
         if (cancelled) return;
         setCandidate(detail);
-        setVotes(votePage.items);
+        setClaimCount(detail.claim_count || 0);
+        setVotes(votePage.items.map((v) => ({ ...v, topics: v.topics || [] })));
       })
       .catch((e) => {
         if (!cancelled) setError(e.message);
@@ -69,7 +72,7 @@ export function CandidateDetailPage() {
 
   useEffect(() => {
     if (!slug || !candidate) return;
-    if (tab === 'votes') return; // préchargé avec le détail candidat
+    if (tab === 'votes' || tab === 'positions') return;
 
     let cancelled = false;
 
@@ -164,6 +167,10 @@ export function CandidateDetailPage() {
           <span className="stat-value">{candidate.article_count}</span>
           <span className="stat-label">Articles</span>
         </div>
+        <div className="stat-card">
+          <span className="stat-value">{claimCount}</span>
+          <span className="stat-label">Positions</span>
+        </div>
       </div>
 
       <VoteStatsPanel stats={candidate.vote_stats} title="Profil de vote" />
@@ -171,6 +178,12 @@ export function CandidateDetailPage() {
       <div className="tabs">
         <button className={tab === 'votes' ? 'active' : ''} onClick={() => setTab('votes')}>
           Votes ({candidate.vote_count})
+        </button>
+        <button
+          className={tab === 'positions' ? 'active' : ''}
+          onClick={() => setTab('positions')}
+        >
+          Positions ({claimCount})
         </button>
         <button
           className={tab === 'interventions' ? 'active' : ''}
@@ -249,6 +262,7 @@ export function CandidateDetailPage() {
                   <th>Position</th>
                   <th>Groupe</th>
                   <th>Aligné</th>
+                  <th>Thèmes</th>
                   <th>Date</th>
                   <th>Source</th>
                 </tr>
@@ -290,6 +304,19 @@ export function CandidateDetailPage() {
                         <span className="align-no">non</span>
                       )}
                     </td>
+                    <td>
+                      {(v.topics || []).length === 0 ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        <div className="topic-pills">
+                          {v.topics.map((t) => (
+                            <span key={t.id} className="topic-pill">
+                              {t.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                     <td>{formatDate(v.vote_date)}</td>
                     <td>
                       <SourceLink url={clairScrutinUrl(v)} label="CLAIR" />
@@ -307,6 +334,21 @@ export function CandidateDetailPage() {
             <p className="empty-state">Aucun vote à l’Assemblée collecté</p>
           )}
         </section>
+      )}
+
+      {tab === 'positions' && !tabLoading && (
+        <PositionsPanel
+          slug={slug!}
+          votes={votes}
+          claimCount={claimCount}
+          onClaimsChanged={setClaimCount}
+          onVoteTopicsChanged={() => {
+            if (!slug) return;
+            void api.votes(slug).then((page) => {
+              setVotes(page.items.map((v) => ({ ...v, topics: v.topics || [] })));
+            });
+          }}
+        />
       )}
 
       {tab === 'interventions' && !tabLoading && (

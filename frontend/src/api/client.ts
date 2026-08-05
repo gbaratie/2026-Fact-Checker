@@ -46,7 +46,74 @@ export interface CandidateDetail extends Candidate {
   program_count: number;
   vote_count: number;
   article_count: number;
+  claim_count: number;
   vote_stats: VoteStats | null;
+}
+
+export interface Topic {
+  id: string;
+  slug: string;
+  label: string;
+  description: string | null;
+  sort_order: number;
+}
+
+export type ClaimStance = 'pour' | 'contre' | 'nuance' | 'inconnu';
+export type EvidenceType = 'interview' | 'program' | 'article' | 'manual' | 'other';
+
+export interface Claim {
+  id: string;
+  candidate_id: string;
+  topic: Topic;
+  stance: ClaimStance | string;
+  summary: string;
+  quote: string | null;
+  evidence_type: EvidenceType | string;
+  interview_id: string | null;
+  program_document_id: string | null;
+  article_id: string | null;
+  source_url: string | null;
+  method: string;
+  confidence: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClaimCreateInput {
+  topic_slug: string;
+  stance: ClaimStance;
+  summary: string;
+  quote?: string | null;
+  evidence_type?: EvidenceType;
+  interview_id?: string | null;
+  program_document_id?: string | null;
+  article_id?: string | null;
+  source_url?: string | null;
+  method?: 'manual' | 'llm' | 'rule';
+  confidence?: number | null;
+}
+
+export type CoherenceStatus =
+  | 'aligned'
+  | 'conflict'
+  | 'mixed'
+  | 'abstention_only'
+  | 'claims_only'
+  | 'votes_only'
+  | 'empty';
+
+export interface TopicCoherence {
+  topic: Topic;
+  status: CoherenceStatus;
+  claim_stances: string[];
+  vote_positions: string[];
+  claims_count: number;
+  votes_count: number;
+}
+
+export interface CandidateCoherence {
+  candidate_slug: string;
+  topics: TopicCoherence[];
 }
 
 export interface Interview {
@@ -70,6 +137,7 @@ export interface ParliamentaryVote {
   vote_date: string | null;
   source: Source;
   parliamentary_group: ParliamentaryGroup | null;
+  topics: Topic[];
 }
 
 export interface Article {
@@ -254,11 +322,44 @@ export const api = {
   },
   articles: (slug: string, page = 1) =>
     fetchJson<Paginated<Article>>(`/candidates/${slug}/articles?page=${page}`),
+  topics: () => fetchJson<Topic[]>('/topics'),
+  claims: (slug: string) => fetchJson<Claim[]>(`/candidates/${slug}/claims`),
+  createClaim: (secret: string, slug: string, payload: ClaimCreateInput) =>
+    fetchJson<Claim>(`/candidates/${slug}/claims`, withSecret(secret, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })),
+  deleteClaim: (secret: string, claimId: string) =>
+    fetchJson<void>(`/claims/${claimId}`, withSecret(secret, { method: 'DELETE' })),
+  coherence: (slug: string) =>
+    fetchJson<CandidateCoherence>(`/candidates/${slug}/coherence`),
+  setVoteTopics: (secret: string, voteId: string, topicSlugs: string[]) =>
+    fetchJson<Topic[]>(`/votes/${voteId}/topics`, withSecret(secret, {
+      method: 'PUT',
+      body: JSON.stringify({ topic_slugs: topicSlugs }),
+    })),
   groups: () => fetchJson<GroupDetail[]>('/groups'),
   group: (slug: string) => fetchJson<GroupDetail>(`/groups/${slug}`),
   parties: () => fetchJson<PartyDetail[]>('/parties'),
   party: (party: string) => fetchJson<PartyDetail>(`/parties/${encodeURIComponent(party)}`),
   ingestionRuns: () => fetchJson<IngestionRun[]>('/ingestion/runs'),
+};
+
+export const COHERENCE_LABELS: Record<CoherenceStatus, string> = {
+  aligned: 'Aligné',
+  conflict: 'Contradiction',
+  mixed: 'Mixte',
+  abstention_only: 'Sans polarité claire',
+  claims_only: 'Déclaration seule',
+  votes_only: 'Vote seul',
+  empty: 'Vide',
+};
+
+export const STANCE_LABELS: Record<ClaimStance, string> = {
+  pour: 'Pour',
+  contre: 'Contre',
+  nuance: 'Nuancé',
+  inconnu: 'Inconnu',
 };
 
 export function formatLoyalty(rate: number | null | undefined): string {

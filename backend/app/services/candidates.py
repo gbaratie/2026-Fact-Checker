@@ -10,10 +10,12 @@ from app.connectors.parliament import ParliamentConnector
 from app.models import (
     Article,
     Candidate,
+    Claim,
     Interview,
     ParliamentaryVote,
     ProgramDocument,
     Source,
+    VoteTopic,
 )
 from app.schemas import CandidateCreate, CandidateUpdate
 from app.seeds.seed_candidates import seed_candidates
@@ -111,6 +113,16 @@ async def delete_candidate(session: AsyncSession, slug: str) -> None:
     candidate = result.scalar_one_or_none()
     if not candidate:
         raise LookupError("Candidat introuvable")
+
+    await session.execute(delete(Claim).where(Claim.candidate_id == candidate.id))
+
+    vote_ids = (
+        await session.execute(
+            select(ParliamentaryVote.id).where(ParliamentaryVote.candidate_id == candidate.id)
+        )
+    ).scalars().all()
+    if vote_ids:
+        await session.execute(delete(VoteTopic).where(VoteTopic.vote_id.in_(vote_ids)))
 
     source_ids: set = set()
     for model in (Interview, ParliamentaryVote, Article, ProgramDocument):

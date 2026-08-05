@@ -21,13 +21,13 @@ const PROCESS_STEPS = [
   },
   {
     step: '4',
-    title: 'Mesurer l’alignement',
-    body: 'Pour chaque vote comparable, on compare la position du candidat à celle de son groupe parlementaire. Le taux de loyauté agrège ces comparaisons — ce n’est pas encore une note de cohérence multi-sources.',
+    title: 'Structurer les positions',
+    body: 'Les déclarations sont saisies comme claims (thème + stance + citation + source). Les votes peuvent être tagués par les mêmes thèmes pour permettre une comparaison.',
   },
   {
     step: '5',
-    title: 'Explorer',
-    body: 'L’interface permet de parcourir candidats, groupes, partis, votes et historiques. Aucune conclusion automatique de fact-check n’est produite à ce stade.',
+    title: 'Comparer et explorer',
+    body: 'Deux indicateurs : loyauté au groupe parlementaire, et cohérence déclaration ↔ vote par thème. Pas de score global automatique ni de fact-check qui remplace un humain.',
   },
 ];
 
@@ -87,20 +87,20 @@ const PLANNED_SOURCES = [
 
 const NEXT_STEPS = [
   {
-    title: 'Extraire des positions structurées',
-    body: 'À partir des transcripts YouTube et des programmes, identifier des positions thématiques (sujet + polarité) plutôt que du texte brut.',
+    title: 'Curater un premier corpus de claims',
+    body: 'Saisir manuellement 20–50 positions sur quelques candidats (programme + interviews), et taguer les votes associés, pour valider la taxonomie.',
   },
   {
-    title: 'Comparer déclarations et votes',
-    body: 'Passer de la loyauté au groupe à une vraie cohérence multi-sources : ce que le candidat vote vs ce qu’il dit vs ce que la presse rapporte.',
+    title: 'Extraction assistée (LLM)',
+    body: 'Proposer des claims depuis transcripts et programmes, avec revue humaine obligatoire avant publication.',
   },
   {
-    title: 'Documenter la méthodologie',
-    body: 'Formaliser les règles (abstention, absence, changement de groupe, plafond de votes) dans une page dédiée, versionnée avec le code.',
+    title: 'Enrichir les preuves',
+    body: 'Lier systématiquement chaque claim à une interview, un document de programme ou un article déjà collecté.',
   },
   {
-    title: 'Élargir le périmètre sources',
-    body: 'Après la cohérence texte/votes : Europe, puis réseaux sociaux officiels (X, Instagram) avec comptes déclarés et provenance claire.',
+    title: 'Élargir les sources',
+    body: 'Parlement européen, puis comptes officiels X / Instagram — seulement après un volume suffisant de claims validés.',
   },
 ];
 
@@ -214,75 +214,72 @@ export function HomePage() {
       <section id="notation" className="home-section">
         <h2>Notation aujourd’hui</h2>
         <p className="home-section-lead">
-          Il n’existe pas encore de note globale « fiabilité » ou « cohérence
-          programme ». Le seul indicateur calculé est la{' '}
-          <strong>loyauté au groupe parlementaire</strong>.
+          Pas de note globale « fiabilité ». Deux indicateurs distincts coexistent :
+          la <strong>loyauté au groupe</strong> et la{' '}
+          <strong>cohérence déclaration ↔ vote</strong> par thème.
         </p>
         <div className="method-grid">
           <div className="method-block">
-            <h3>Par vote</h3>
-            <ul>
-              <li>
-                Position du candidat : <em>pour</em>, <em>contre</em> ou{' '}
-                <em>abstention</em>
-              </li>
-              <li>
-                Position du groupe (fournie par CLAIR.vote) sur le même scrutin
-              </li>
-              <li>
-                Aligné = les deux positions sont identiques ; sinon non aligné
-              </li>
-              <li>
-                Si la position du groupe est inconnue → vote non comparable
-                (exclu du taux)
-              </li>
-            </ul>
-          </div>
-          <div className="method-block">
-            <h3>Taux de loyauté</h3>
+            <h3>Loyauté au groupe</h3>
             <p className="formula">
               loyauté = votes alignés ÷ votes avec position de groupe connue
             </p>
             <ul>
-              <li>Affiché en pourcentage sur les fiches candidat, groupe et parti</li>
-              <li>Arrondi à 3 décimales côté API, puis formaté en %</li>
-              <li>
-                Compteurs associés : pour / contre / abstention / total collecté
-              </li>
+              <li>Comparaison position candidat ↔ ligne du groupe (CLAIR)</li>
+              <li>Hors scope : programme, interviews, presse</li>
+            </ul>
+          </div>
+          <div className="method-block">
+            <h3>Positions structurées (claims)</h3>
+            <ul>
+              <li>Thème (immigration, fiscalité, énergie…)</li>
+              <li>Stance : pour / contre / nuance / inconnu</li>
+              <li>Résumé + citation + URL ou preuve liée</li>
+              <li>Saisie manuelle via l’onglet Positions (secret admin)</li>
             </ul>
           </div>
         </div>
       </section>
 
       <section id="coherence" className="home-section">
-        <h2>Comment la cohérence des votes est jugée</h2>
+        <h2>Comment la cohérence est jugée</h2>
         <p className="home-section-lead">
-          Attention au vocabulaire : ce que l’interface montre comme « aligné » ou
-          « loyauté » mesure la <strong>discipline de vote par rapport au groupe</strong>,
-          pas une cohérence idéologique avec le programme ou les interviews.
+          Sur chaque thème où existent à la fois des claims et des votes tagués, on
+          compare les polarités <em>pour</em> / <em>contre</em>.
         </p>
         <div className="method-grid">
           <div className="method-block">
-            <h3>Ce qui est mesuré</h3>
+            <h3>Statuts</h3>
             <ul>
-              <li>Égalité stricte position candidat ↔ position du groupe</li>
-              <li>Chambre par chambre (Assemblée, Sénat)</li>
-              <li>Uniquement sur les scrutins où CLAIR fournit la ligne du groupe</li>
+              <li>
+                <strong>Aligné</strong> — même polarité des deux côtés
+              </li>
+              <li>
+                <strong>Contradiction</strong> — pour d’un côté, contre de l’autre
+              </li>
+              <li>
+                <strong>Mixte</strong> — polarités multiples ou partiellement
+                chevauchantes
+              </li>
+              <li>
+                <strong>Déclaration seule / vote seul</strong> — pas encore comparable
+              </li>
             </ul>
           </div>
           <div className="method-block">
-            <h3>Ce qui ne l’est pas (encore)</h3>
+            <h3>Limites assumées</h3>
             <ul>
-              <li>Écart entre un vote et une promesse de campagne</li>
-              <li>Contradiction entre deux déclarations médiatiques</li>
-              <li>Score composite multi-sources ou « note de cohérence »</li>
+              <li>Pas de score composite automatique</li>
+              <li>Abstention et « nuance » ne créent pas de contradiction</li>
+              <li>Les votes non tagués sont ignorés par la cohérence thématique</li>
+              <li>L’extraction LLM n’est pas encore branchée</li>
             </ul>
           </div>
         </div>
         <p className="home-note">
-          Ces comparaisons multi-sources font partie de la phase 2 prévue : extraction
-          de positions depuis les transcripts et détection d’incohérences entre votes,
-          déclarations et articles.
+          Les tables <code>topics</code>, <code>claims</code> et{' '}
+          <code>vote_topics</code> sont en place : on peut curater maintenant, puis
+          automatiser l’extraction ensuite.
         </p>
       </section>
 

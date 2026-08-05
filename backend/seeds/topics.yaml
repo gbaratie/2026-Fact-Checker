@@ -1,0 +1,49 @@
+topics:
+  - slug: immigration
+    label: Immigration
+    description: Contrôle des frontières, asile, naturalisation, quotas.
+    sort_order: 10
+  - slug: fiscalite
+    label: Fiscalité
+    description: Impôts, ISF/IFI, TVA, niches fiscales, redistribution.
+    sort_order: 20
+  - slug: energie-climat
+    label: Énergie & climat
+    description: Nucléaire, renouvelables, sortie des fossiles, taxation carbone.
+    sort_order: 30
+  - slug: europe
+    label: Europe
+    description: UE, traités, souveraineté européenne, budget communautaire.
+    sort_order: 40
+  - slug: securite
+    label: Sécurité
+    description: Police, justice pénale, antiterrorisme, peines.
+    sort_order: 50
+  - slug: retraite
+    label: Retraites
+    description: Âge légal, durée de cotisation, régime universel, pensions.
+    sort_order: 60
+  - slug: sante
+    label: Santé
+    description: Hôpital, assurance maladie, déserts médicaux, prévention.
+    sort_order: 70
+  - slug: education
+    label: Éducation
+    description: École, université, laïcité scolaire, moyens et programmes.
+    sort_order: 80
+  - slug: logement
+    label: Logement
+    description: Construction, encadrement des loyers, HLM, accession.
+    sort_order: 90
+  - slug: travail
+    label: Travail & emploi
+    description: Code du travail, chômage, SMIC, temps de travail.
+    sort_order: 100
+  - slug: institutions
+    label: Institutions
+    description: Réforme de la Ve République, proportionnelle, référendum.
+    sort_order: 110
+  - slug: international
+    label: International & défense
+    description: OTAN, Ukraine, Moyen-Orient, budget militaire.
+    sort_order: 120

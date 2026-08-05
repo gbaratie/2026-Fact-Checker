@@ -850,6 +850,74 @@ h1 {
   background: #f7f8fc;
 }
 
+.coherence-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.coherence-aligned {
+  background: #d4edda;
+  color: #155724;
+}
+
+.coherence-conflict {
+  background: #fdecea;
+  color: #c0392b;
+}
+
+.coherence-mixed {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.coherence-neutral {
+  background: #eef0f5;
+  color: #444;
+}
+
+.topic-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.topic-pill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #2d3a8c;
+  background: #e8ecf8;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+}
+
+.topic-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.35rem;
+}
+
+.topic-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.claim-quote {
+  margin-top: 0.35rem;
+  font-style: italic;
+}
+
+.positions-panel .section-title {
+  margin-top: 1.5rem;
+}
+
 @media (max-width: 700px) {
   .top-banner {
     padding: 0.65rem 1.25rem;
