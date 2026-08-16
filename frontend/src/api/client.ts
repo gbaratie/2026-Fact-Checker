@@ -116,6 +116,20 @@ export interface CandidateCoherence {
   topics: TopicCoherence[];
 }
 
+export interface LlmClassifyVotesResult {
+  classified: number;
+  skipped: number;
+  processed: number;
+  errors: string[];
+}
+
+export interface LlmExtractClaimsResult {
+  created: number;
+  skipped: number;
+  programs_processed: number;
+  errors: string[];
+}
+
 export interface Interview {
   id: string;
   youtube_video_id: string;
@@ -338,6 +352,40 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ topic_slugs: topicSlugs }),
     })),
+  classifyVoteTopics: (
+    secret: string,
+    slug: string,
+    opts?: { only_untagged?: boolean; limit?: number },
+  ) => {
+    const params = new URLSearchParams();
+    if (opts?.only_untagged !== undefined) {
+      params.set('only_untagged', String(opts.only_untagged));
+    }
+    if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+    const qs = params.toString();
+    return fetchJson<LlmClassifyVotesResult>(
+      `/candidates/${slug}/votes/classify-topics${qs ? `?${qs}` : ''}`,
+      withSecret(secret, { method: 'POST' }),
+    );
+  },
+  extractProgramClaims: (
+    secret: string,
+    slug: string,
+    opts?: { limit_programs?: number; max_claims_per_program?: number },
+  ) => {
+    const params = new URLSearchParams();
+    if (opts?.limit_programs !== undefined) {
+      params.set('limit_programs', String(opts.limit_programs));
+    }
+    if (opts?.max_claims_per_program !== undefined) {
+      params.set('max_claims_per_program', String(opts.max_claims_per_program));
+    }
+    const qs = params.toString();
+    return fetchJson<LlmExtractClaimsResult>(
+      `/candidates/${slug}/programs/extract-claims${qs ? `?${qs}` : ''}`,
+      withSecret(secret, { method: 'POST' }),
+    );
+  },
   groups: () => fetchJson<GroupDetail[]>('/groups'),
   group: (slug: string) => fetchJson<GroupDetail>(`/groups/${slug}`),
   parties: () => fetchJson<PartyDetail[]>('/parties'),

@@ -32,6 +32,8 @@ from app.schemas import (
     HealthOut,
     IngestionRunOut,
     InterviewOut,
+    LlmClassifyVotesOut,
+    LlmExtractClaimsOut,
     PaginatedResponse,
     ParliamentaryGroupDetailOut,
     ParliamentaryGroupOut,
@@ -49,6 +51,8 @@ from app.schemas import (
 from app.seeds.seed_topics import seed_topics
 from app.services import candidates as candidate_service
 from app.services import claims as claims_service
+from app.services import llm_classify
+from app.services.llm_client import LlmConfigError, LlmRequestError
 
 router = APIRouter()
 
@@ -406,6 +410,62 @@ async def set_vote_topics(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return [TopicOut.model_validate(t) for t in topics]
+
+
+@router.post(
+    "/candidates/{slug}/votes/classify-topics",
+    response_model=LlmClassifyVotesOut,
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def classify_vote_topics(
+    slug: str,
+    only_untagged: bool = Query(True),
+    limit: int = Query(30, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> LlmClassifyVotesOut:
+    candidate = await _get_candidate_or_404(db, slug)
+    try:
+        stats = await llm_classify.classify_vote_topics(
+            db,
+            candidate,
+            only_untagged=only_untagged,
+            limit=limit,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except LlmConfigError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except LlmRequestError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return LlmClassifyVotesOut(**stats)
+
+
+@router.post(
+    "/candidates/{slug}/programs/extract-claims",
+    response_model=LlmExtractClaimsOut,
+    dependencies=[Depends(require_ingestion_secret)],
+)
+async def extract_program_claims(
+    slug: str,
+    limit_programs: int = Query(5, ge=1, le=20),
+    max_claims_per_program: int = Query(8, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+) -> LlmExtractClaimsOut:
+    candidate = await _get_candidate_or_404(db, slug)
+    try:
+        stats = await llm_classify.extract_program_claims(
+            db,
+            candidate,
+            limit_programs=limit_programs,
+            max_claims_per_program=max_claims_per_program,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except LlmConfigError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except LlmRequestError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return LlmExtractClaimsOut(**stats)
 
 
 @router.get("/candidates/{slug}/articles", response_model=PaginatedResponse)

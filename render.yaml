@@ -11,6 +11,10 @@ services:
         sync: false
       - key: YOUTUBE_API_KEY
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: gpt-4o-mini
       - key: INGESTION_SECRET
         generateValue: true
       - key: CORS_ORIGINS

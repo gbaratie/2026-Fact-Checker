@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     ingestion_secret: str = "dev-secret"
     cors_origins: str = "http://localhost:5173"
 
+    openai_api_key: str = ""
+    llm_model: str = "gpt-4o-mini"
+    llm_base_url: str = "https://api.openai.com/v1"
+
     clair_api_base: str = "https://clair-production.up.railway.app/api/v1"
     an_votes_url: str = (
         "https://data.assemblee-nationale.fr/static/openData/repository/17/loi/scrutins/Scrutins.json"
