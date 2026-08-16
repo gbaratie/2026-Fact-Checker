@@ -104,6 +104,62 @@ const NEXT_STEPS = [
   },
 ];
 
+function HomeStats({
+  stats,
+  error,
+}: {
+  stats: AppStats | null;
+  error: string | null;
+}) {
+  if (error) {
+    return (
+      <div className="stats-live" role="status">
+        <ErrorMessage message={error} />
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="stats-grid stats-grid--pending" aria-busy="true">
+        {['Candidats suivis', 'Base de données', 'Dernière ingestion'].map((label) => (
+          <div key={label} className="stat-card stat-card--pending">
+            <span className="stat-value stat-value--pending">…</span>
+            <span className="stat-label">{label}</span>
+          </div>
+        ))}
+        <div className="stats-loading-hint">
+          <Loading />
+          <p className="stats-loading-note">
+            L’API peut mettre quelques dizaines de secondes à se réveiller (Render free).
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="stats-grid">
+      <div className="stat-card">
+        <span className="stat-value">{stats.candidate_count}</span>
+        <span className="stat-label">Candidats suivis</span>
+      </div>
+      <div className="stat-card">
+        <span className="stat-value">{stats.database}</span>
+        <span className="stat-label">Base de données</span>
+      </div>
+      <div className="stat-card">
+        <span className="stat-value">
+          {stats.last_ingestion_at
+            ? new Date(stats.last_ingestion_at).toLocaleDateString('fr-FR')
+            : '—'}
+        </span>
+        <span className="stat-label">Dernière ingestion</span>
+      </div>
+    </div>
+  );
+}
+
 export function HomePage() {
   const [stats, setStats] = useState<AppStats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -115,9 +171,6 @@ export function HomePage() {
       .catch((e) => setError(e.message));
   }, []);
 
-  if (error) return <ErrorMessage message={error} />;
-  if (!stats) return <Loading />;
-
   return (
     <div className="home">
       <section className="home-hero">
@@ -128,24 +181,7 @@ export function HomePage() {
           pour préparer un fact-checking traçable, pas pour le remplacer.
         </p>
 
-        <div className="stats-grid">
-          <div className="stat-card">
-            <span className="stat-value">{stats.candidate_count}</span>
-            <span className="stat-label">Candidats suivis</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-value">{stats.database}</span>
-            <span className="stat-label">Base de données</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-value">
-              {stats.last_ingestion_at
-                ? new Date(stats.last_ingestion_at).toLocaleDateString('fr-FR')
-                : '—'}
-            </span>
-            <span className="stat-label">Dernière ingestion</span>
-          </div>
-        </div>
+        <HomeStats stats={stats} error={error} />
 
         <div className="actions">
           <Link to="/candidates" className="btn">

@@ -216,6 +216,10 @@ h1 {
   margin: 1.5rem 0;
 }
 
+.stats-grid--pending {
+  position: relative;
+}
+
 .stat-card {
   background: white;
   border: 1px solid #e2e6ef;
@@ -226,15 +230,45 @@ h1 {
   gap: 0.25rem;
 }
 
+.stat-card--pending {
+  opacity: 0.7;
+}
+
 .stat-value {
   font-size: 1.5rem;
   font-weight: 700;
   color: #2d3a8c;
 }
 
+.stat-value--pending {
+  color: #9aa3b5;
+  letter-spacing: 0.05em;
+}
+
 .stat-label {
   font-size: 0.85rem;
   color: #666;
+}
+
+.stats-live {
+  margin: 1.5rem 0;
+}
+
+.stats-loading-hint {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.stats-loading-hint .loading {
+  padding: 0.25rem 0 0;
+}
+
+.stats-loading-note {
+  font-size: 0.85rem;
+  color: #888;
 }
 
 .actions {
