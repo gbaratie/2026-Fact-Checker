@@ -104,6 +104,7 @@ make ingest-votes
 3. Renseigner les variables d'environnement :
    - `DATABASE_URL` — connection string Neon
    - `YOUTUBE_API_KEY` — clé API Google Cloud
+   - `OPENAI_API_KEY` — clé OpenAI (classification thèmes / extraction claims)
    - `CORS_ORIGINS` — URL GitHub Pages (ex. `https://votre-user.github.io`)
 
 ### GitHub Pages
@@ -167,15 +168,23 @@ Tables `topics`, `claims`, `vote_topics` : thèmes référentiels, positions dé
 | `POST /candidates/{slug}/claims` | Créer une position (`X-Ingestion-Secret`) |
 | `PATCH /claims/{id}` / `DELETE /claims/{id}` | Modifier / supprimer |
 | `PUT /votes/{id}/topics` | Remplacer les thèmes d'un vote |
+| `POST /candidates/{slug}/votes/classify-topics` | Classifier les thèmes des votes via OpenAI (`X-Ingestion-Secret`) |
+| `POST /candidates/{slug}/programs/extract-claims` | Extraire des positions depuis les programmes via OpenAI |
 | `GET /candidates/{slug}/coherence` | Comparaison déclaration ↔ vote par thème |
 
 `make seed` importe d'abord les thèmes, puis les candidats.
 
 Statuts de cohérence : `aligned`, `conflict`, `mixed`, `claims_only`, `votes_only`, `abstention_only`.
 
+### LLM (OpenAI)
+
+Variables : `OPENAI_API_KEY` (requis), `LLM_MODEL` (défaut `gpt-4o-mini`), `LLM_BASE_URL` (défaut API OpenAI).
+
+Dans l'onglet **Positions** d'un candidat : boutons « Classifier les thèmes des votes » et « Extraire les positions des programmes » (secret d'ingestion). Les claims créés ont `method=llm` — à relire / supprimer si besoin.
+
 ## Phase 2 (suite)
 
-- Extraction LLM des positions depuis transcripts / programmes
-- Curation assistée puis revue humaine
+- Extraction LLM depuis transcripts YouTube
+- File de revue / statut pending_review
 - Dashboards analytiques
 - Sources sociales (X, Instagram) après un volume suffisant de claims validés

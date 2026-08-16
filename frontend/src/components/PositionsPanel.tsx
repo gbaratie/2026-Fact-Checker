@@ -179,6 +179,59 @@ export function PositionsPanel({
     }
   }
 
+  async function handleClassifyVotes() {
+    if (!secret.trim()) {
+      setError('Secret d’ingestion requis pour classifier les votes.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await api.classifyVoteTopics(secret.trim(), slug, {
+        only_untagged: true,
+        limit: 30,
+      });
+      const errNote =
+        result.errors.length > 0 ? ` (${result.errors.length} erreur(s))` : '';
+      setMessage(
+        `LLM votes : ${result.classified} tagué(s), ${result.skipped} ignoré(s)${errNote}.`,
+      );
+      onVoteTopicsChanged();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleExtractProgramClaims() {
+    if (!secret.trim()) {
+      setError('Secret d’ingestion requis pour extraire les positions.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await api.extractProgramClaims(secret.trim(), slug, {
+        limit_programs: 5,
+        max_claims_per_program: 8,
+      });
+      const errNote =
+        result.errors.length > 0 ? ` (${result.errors.length} erreur(s))` : '';
+      setMessage(
+        `LLM programmes : ${result.created} position(s) créée(s), ${result.skipped} ignorée(s) sur ${result.programs_processed} document(s)${errNote}.`,
+      );
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function toggleTagTopic(slugValue: string) {
     setTagTopicSlugs((prev) =>
       prev.includes(slugValue) ? prev.filter((s) => s !== slugValue) : [...prev, slugValue],
@@ -191,12 +244,48 @@ export function PositionsPanel({
   return (
     <section className="positions-panel">
       <p className="home-section-lead">
-        Positions structurées par thème, comparées aux votes tagués. Ce n’est pas une note
-        automatique : chaque claim est saisie (ou sera extraite) avec une source.
+        Positions structurées par thème, comparées aux votes tagués. Saisie manuelle ou
+        extraction LLM (OpenAI) avec revue humaine.
       </p>
 
       {error && <ErrorMessage message={error} />}
       {message && <p className="success-banner">{message}</p>}
+
+      <div className="admin-panel" style={{ marginTop: '0.5rem' }}>
+        <h2>Assistance LLM</h2>
+        <p className="muted" style={{ marginBottom: '0.75rem' }}>
+          Nécessite <code>OPENAI_API_KEY</code> côté API et le secret d’ingestion. Relis
+          toujours les suggestions avant de te fier à la cohérence.
+        </p>
+        <label className="form-field" style={{ maxWidth: '28rem', marginBottom: '0.75rem' }}>
+          Secret d’ingestion
+          <input
+            type="password"
+            value={secret}
+            onChange={(e) => persistSecret(e.target.value)}
+            autoComplete="off"
+            placeholder="INGESTION_SECRET"
+          />
+        </label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={() => void handleClassifyVotes()}
+          >
+            Classifier les thèmes des votes
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={() => void handleExtractProgramClaims()}
+          >
+            Extraire les positions des programmes
+          </button>
+        </div>
+      </div>
 
       <h3 className="section-title">Cohérence déclaration ↔ vote</h3>
       {coherence.topics.length === 0 ? (
@@ -248,6 +337,7 @@ export function PositionsPanel({
               <th>Stance</th>
               <th>Résumé</th>
               <th>Preuve</th>
+              <th>Méthode</th>
               <th></th>
             </tr>
           </thead>
@@ -272,6 +362,14 @@ export function PositionsPanel({
                       <SourceLink url={claim.source_url} label="Source" />
                     </>
                   )}
+                </td>
+                <td>
+                  <span className="muted">
+                    {claim.method}
+                    {claim.confidence != null
+                      ? ` · ${Math.round(claim.confidence * 100)}%`
+                      : ''}
+                  </span>
                 </td>
                 <td>
                   <button

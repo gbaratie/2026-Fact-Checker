@@ -352,3 +352,17 @@ class TopicCoherenceOut(BaseModel):
 class CandidateCoherenceOut(BaseModel):
     candidate_slug: str
     topics: list[TopicCoherenceOut] = []
+
+
+class LlmClassifyVotesOut(BaseModel):
+    classified: int
+    skipped: int
+    processed: int
+    errors: list[str] = []
+
+
+class LlmExtractClaimsOut(BaseModel):
+    created: int
+    skipped: int
+    programs_processed: int
+    errors: list[str] = []
